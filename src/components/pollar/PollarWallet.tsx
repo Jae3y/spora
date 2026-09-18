@@ -86,6 +86,16 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
   const [depositError, setDepositError] = useState<string | null>(null);
   const [depositing, setDepositing] = useState(false);
   const [trustlineBusy, setTrustlineBusy] = useState(false);
+  /**
+   * How much to commit, editable.
+   *
+   * This was a fixed tenth of the balance, chosen to echo the corridor's
+   * climate-buffer share. That is tidy narratively and fragile in practice: a
+   * venue with a minimum deposit rejects it, and the failure surfaces as a
+   * signature error rather than as "too small". The amount is now the user's
+   * to set, defaulting to most of the balance so the common case succeeds.
+   */
+  const [amount, setAmount] = useState('');
 
   /**
    * The SDK is imported dynamically.
@@ -239,6 +249,14 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
           next[code] = String(b.balance ?? '0');
         }
         setBalances(next);
+
+        // Leave a little behind so the demo can be run twice, and so the
+        // account keeps enough to pay its own way.
+        const usdc = Number(next.USDC ?? 0);
+        if (usdc > 0) {
+          const suggested = Math.max(0.01, Math.floor(usdc * 0.8 * 100) / 100);
+          setAmount((current) => current || suggested.toFixed(2));
+        }
       })
       .catch(() => {
         /* A balance read failing must not blank the rest of the panel. */
@@ -584,15 +602,27 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
                         cannot fund would fail at the signature and read as a
                         broken integration rather than an empty account. */}
                     {Number(balances.USDC ?? 0) > 0 && (
-                      <Button
-                        className="mt-2.5"
-                        variant="primary"
-                        onClick={() => depositToEarn(o, depositAmount(balances.USDC))}
-                        disabled={depositing}
-                      >
-                        {depositing ? <Spinner /> : null} Deposit{' '}
-                        {depositAmount(balances.USDC)} USDC
-                      </Button>
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                        <label className="sr-only" htmlFor={`amt-${i}`}>
+                          Amount to deposit into {name}
+                        </label>
+                        <input
+                          id={`amt-${i}`}
+                          value={amount}
+                          onChange={(e) =>
+                            setAmount(e.target.value.replace(/[^\d.]/g, ''))
+                          }
+                          inputMode="decimal"
+                          className="numeric w-24 rounded-lg border border-[var(--edge-bright)] bg-[var(--panel)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--blue)]"
+                        />
+                        <Button
+                          variant="primary"
+                          onClick={() => depositToEarn(o, amount)}
+                          disabled={depositing || !(Number(amount) > 0)}
+                        >
+                          {depositing ? <Spinner /> : null} Deposit USDC
+                        </Button>
+                      </div>
                     )}
                   </li>
                 );
@@ -612,19 +642,4 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
       )}
     </Panel>
   );
-}
-
-/**
- * How much of the wallet's USDC to commit.
- *
- * Deliberately not the whole balance: a venue deposit still needs the account
- * to keep enough to pay its own way, and a demo that empties the wallet cannot
- * be run twice. Ten percent also matches the corridor's climate-buffer share,
- * so the figure means something rather than being an arbitrary slice.
- */
-function depositAmount(balance: string | undefined): string {
-  const available = Number(balance ?? 0);
-  if (!Number.isFinite(available) || available <= 0) return '0';
-  const tenth = Math.floor(available * 0.1 * 100) / 100;
-  return (tenth >= 0.01 ? tenth : Math.min(available, 0.01)).toFixed(2);
 }
