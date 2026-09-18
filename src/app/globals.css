@@ -242,6 +242,9 @@ body::after {
 
 /** Recessed well. Light catches the bottom inner edge of a depression. */
 .panel-sunken {
+  /* Same reasoning as `.panel`: usually a grid child, and `min-width: auto`
+     would let its contents dictate the page width. */
+  min-width: 0;
   background: var(--panel-sunken);
   border-radius: var(--r-well);
   box-shadow:
@@ -307,6 +310,18 @@ body::after {
 
 /** Tabular figures wherever a number can change, so it cannot jitter. */
 .numeric {
+  /**
+   * Stellar identifiers are 56 unbroken characters. A browser will not break
+   * inside a token like that, so one contract ID sets a floor on its
+   * container's width -- and because grid and flex children default to
+   * `min-width: auto`, that floor propagates outward until something is wider
+   * than the phone. `anywhere` lets the identifier wrap mid-token, which is
+   * the only sensible behaviour for a value nobody reads as a word.
+   *
+   * Harmless for the figures this class also styles: short numbers never reach
+   * a wrap point.
+   */
+  overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;

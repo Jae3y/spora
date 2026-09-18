@@ -45,8 +45,8 @@ const STEPS = [
     place: 'Kano, Nigeria',
     title: 'Farmers pool what they can',
     plain:
-      'Eight families each send a few thousand shillings from the phone in their pocket. Together it becomes a real order.',
-    tech: 'NIBSS transfer → Kotani Pay → Stellar USDC',
+      'Eight families each send a few hundred thousand naira from the phone in their pocket. Together it becomes a real order.',
+    tech: 'NIBSS transfer → Paystack → Stellar USDC',
   },
   {
     n: '02',

@@ -285,7 +285,7 @@ export default function Spora() {
         {/* ---- rail status ---- */}
         <div className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {rails.map((r) => (
-            <div key={r.rail} className="panel-sunken px-3 py-2.5">
+            <div key={r.rail} className="panel-sunken min-w-0 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-medium text-[var(--ink)]">
                   {r.rail}
@@ -373,7 +373,7 @@ export default function Spora() {
               href={identities.contractExplorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="numeric mt-4 inline-flex items-center gap-1 text-xs text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
+              className="numeric mt-4 inline-flex max-w-full items-center gap-1 break-all text-xs text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
             >
               {identities.contractId}
               <ArrowUpRight size={11} weight="bold" aria-hidden />
