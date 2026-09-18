@@ -13,7 +13,8 @@
     "contract:test": "cargo test --manifest-path contracts/spora_escrow/Cargo.toml",
     "typecheck": "tsc --noEmit",
     "contract:opt": "wasm-opt target/wasm32-unknown-unknown/release/spora_escrow.wasm -o target/wasm32-unknown-unknown/release/spora_escrow.optimized.wasm -Oz --mvp-features --enable-sign-ext --enable-mutable-globals",
-    "contract:deploy": "tsx scripts/deploy.ts"
+    "contract:deploy": "tsx scripts/deploy.ts",
+    "fund:usdc": "tsx scripts/fund-usdc.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

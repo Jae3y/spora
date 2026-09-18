@@ -205,14 +205,14 @@ async function main(): Promise<void> {
   const admin = env.get('STELLAR_ADMIN_SECRET')
     ? Keypair.fromSecret(env.get('STELLAR_ADMIN_SECRET')!)
     : Keypair.random();
-  const oracle = env.get('ORACLE_STELLAR_SECRET')
-    ? Keypair.fromSecret(env.get('ORACLE_STELLAR_SECRET')!)
+  const oracle = env.get('ORACLE_SECRET_KEY')
+    ? Keypair.fromSecret(env.get('ORACLE_SECRET_KEY')!)
     : Keypair.random();
-  const cooperative = env.get('COOPERATIVE_STELLAR_SECRET')
-    ? Keypair.fromSecret(env.get('COOPERATIVE_STELLAR_SECRET')!)
+  const cooperative = env.get('COOPERATIVE_SECRET')
+    ? Keypair.fromSecret(env.get('COOPERATIVE_SECRET')!)
     : Keypair.random();
-  const supplier = env.get('SUPPLIER_STELLAR_SECRET')
-    ? Keypair.fromSecret(env.get('SUPPLIER_STELLAR_SECRET')!)
+  const supplier = env.get('SUPPLIER_SECRET')
+    ? Keypair.fromSecret(env.get('SUPPLIER_SECRET')!)
     : Keypair.random();
 
   await fundIfNeeded(admin, 'admin');
@@ -271,12 +271,17 @@ async function main(): Promise<void> {
   console.log(`  ${green('✓')} threshold ${THRESHOLD_MM} mm`);
 
   // ---- 5. persist ----
+  // These key names are not arbitrary -- they are exactly what `lib/config.ts`
+  // reads. An earlier version wrote `CONTRACT_ID`, which nothing reads, so the
+  // deploy reported success while the app stayed silently on the mock. That is
+  // the worst possible failure mode: a green path and a dead integration.
   writeEnv({
-    CONTRACT_ID: contractId,
+    NEXT_PUBLIC_SPORA_CONTRACT_ID: contractId,
     STELLAR_ADMIN_SECRET: admin.secret(),
-    ORACLE_STELLAR_SECRET: oracle.secret(),
-    COOPERATIVE_STELLAR_SECRET: cooperative.secret(),
-    SUPPLIER_STELLAR_SECRET: supplier.secret(),
+    ORACLE_SECRET_KEY: oracle.secret(),
+    COOPERATIVE_SECRET: cooperative.secret(),
+    SUPPLIER_SECRET: supplier.secret(),
+    POLLAR_GAS_WALLET_SECRET: admin.secret(),
     STELLAR_WASM_HASH: wasmHashHex,
   });
 
