@@ -40,6 +40,12 @@ import { Button, Panel, Spinner } from '@/components/ui/primitives';
 
 type Phase = 'loading' | 'ready' | 'email' | 'code' | 'working' | 'authed' | 'error';
 
+/** Circle's USDC issuer on Stellar testnet -- the asset the escrow settles in. */
+const USDC = {
+  code: 'USDC',
+  issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+} as const;
+
 interface EarnState {
   opportunities: EarnOpportunity[];
   error: string | null;
@@ -68,6 +74,18 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
     error: null,
     loading: false,
   });
+
+  /** Balances on the embedded wallet, so the deposit can be gated honestly. */
+  const [balances, setBalances] = useState<Record<string, string>>({});
+  /** Result of a real Pollar-built, user-signed, on-chain deposit. */
+  const [deposit, setDeposit] = useState<{
+    hash: string;
+    venue: string;
+    amount: string;
+  } | null>(null);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositing, setDepositing] = useState(false);
+  const [trustlineBusy, setTrustlineBusy] = useState(false);
 
   /**
    * The SDK is imported dynamically.
@@ -173,6 +191,132 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
   useEffect(() => {
     if (phase === 'authed') void loadEarn();
   }, [phase, loadEarn]);
+
+  /** Read the embedded wallet's on-chain balances. */
+  const loadBalances = useCallback(async (address: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    try {
+      const content = await client.getWalletBalance(address, 'testnet');
+      const rows = (content as unknown as { balances?: unknown[] })?.balances ?? [];
+      const next: Record<string, string> = {};
+      for (const raw of rows) {
+        const b = raw as Record<string, unknown>;
+        const code = String(b.assetCode ?? b.asset_code ?? b.code ?? 'XLM');
+        next[code] = String(b.balance ?? '0');
+      }
+      setBalances(next);
+    } catch {
+      /* A balance read failing must not block the rest of the panel. */
+    }
+  }, []);
+
+  /**
+   * Fetch balances inline with a cancellation flag rather than calling the
+   * shared loader.
+   *
+   * This is the shape the effect rule actually wants: the effect subscribes to
+   * an external system and writes state from the *callback*, so a stale
+   * response from a previous wallet can never overwrite the current one. The
+   * shared `loadBalances` stays for the button handlers, which are events
+   * rather than synchronisation.
+   */
+  useEffect(() => {
+    if (phase !== 'authed' || !wallet) return;
+    const client = clientRef.current;
+    if (!client) return;
+
+    let cancelled = false;
+    client
+      .getWalletBalance(wallet, 'testnet')
+      .then((content) => {
+        if (cancelled) return;
+        const rows = (content as unknown as { balances?: unknown[] })?.balances ?? [];
+        const next: Record<string, string> = {};
+        for (const raw of rows) {
+          const b = raw as Record<string, unknown>;
+          const code = String(b.assetCode ?? b.asset_code ?? b.code ?? 'XLM');
+          next[code] = String(b.balance ?? '0');
+        }
+        setBalances(next);
+      })
+      .catch(() => {
+        /* A balance read failing must not blank the rest of the panel. */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, wallet]);
+
+  /**
+   * Establish the USDC trustline on the embedded wallet.
+   *
+   * Stellar requires an explicit trustline before an account can hold a
+   * non-native asset, and each one locks a 0.5 XLM base reserve. Pollar
+   * sponsors that reserve for app-configured assets, which is precisely the
+   * point: a farmer who has never held XLM still ends up able to receive USDC.
+   */
+  async function enableUsdc() {
+    const client = clientRef.current;
+    if (!client) return;
+    setTrustlineBusy(true);
+    setDepositError(null);
+    try {
+      const outcome = await client.setTrustline(USDC);
+      if (outcome.status === 'error') {
+        setDepositError(outcome.details ?? 'Could not establish the USDC trustline.');
+      } else {
+        await client.refreshAssets();
+        if (wallet) await loadBalances(wallet);
+      }
+    } catch (cause) {
+      setDepositError((cause as Error).message);
+    } finally {
+      setTrustlineBusy(false);
+    }
+  }
+
+  /**
+   * Deposit the climate buffer into an Earn venue, through Pollar.
+   *
+   * `earnDeposit` is build -> sign -> submit in one call: Pollar's backend
+   * builds the provider transaction, the user's session signs it, and it
+   * broadcasts. The hash it returns is the answer to "did money move through
+   * Pollar on Stellar" -- and it is the user's own funds moving, not ours.
+   */
+  async function depositToEarn(opportunity: EarnOpportunity, amount: string) {
+    const client = clientRef.current;
+    if (!client) return;
+
+    const row = opportunity as unknown as Record<string, unknown>;
+    const provider = String(row.provider ?? 'blend');
+    const id = String(row.id ?? '');
+    const name = String(row.name ?? id);
+
+    setDepositing(true);
+    setDepositError(null);
+    try {
+      const outcome = await client.earnDeposit({
+        provider: provider as Parameters<typeof client.earnDeposit>[0]['provider'],
+        opportunity: id,
+        amount,
+      });
+
+      if (outcome.status === 'error') {
+        setDepositError(
+          outcome.details ?? outcome.message ?? 'Pollar rejected the deposit.',
+        );
+      } else {
+        setDeposit({ hash: outcome.hash, venue: name, amount });
+        if (wallet) await loadBalances(wallet);
+      }
+    } catch (cause) {
+      setDepositError((cause as Error).message);
+    } finally {
+      setDepositing(false);
+    }
+  }
 
   function begin() {
     setError(null);
@@ -318,6 +462,83 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
             </p>
           </div>
 
+          {/* ---- proof, once a deposit has actually settled ---- */}
+          {deposit && (
+            <div className="rounded-lg border border-[color-mix(in_srgb,var(--green)_45%,transparent)] bg-[color-mix(in_srgb,var(--green)_10%,transparent)] px-4 py-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[var(--green-bright)]">
+                  Money moved through Pollar
+                </p>
+                <span className="badge badge-land scale-90">ON CHAIN</span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+                {deposit.amount} USDC deposited into {deposit.venue}. Pollar built the
+                transaction, this session signed it, and Stellar settled it.
+              </p>
+              <a
+                href={`https://stellar.expert/explorer/testnet/tx/${deposit.hash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="numeric mt-2 block break-all text-xs text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
+              >
+                {deposit.hash}
+              </a>
+            </div>
+          )}
+
+          {/* ---- balances and funding ---- */}
+          <div className="panel-sunken px-4 py-3.5">
+            <p className="panel-heading">Balances</p>
+            <dl className="mt-2 space-y-1 text-sm">
+              {Object.keys(balances).length === 0 ? (
+                <p className="text-xs text-[var(--ink-dim)]">
+                  Account not yet created on the network.
+                </p>
+              ) : (
+                Object.entries(balances).map(([code, amount]) => (
+                  <div key={code} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--ink-dim)]">{code}</dt>
+                    <dd className="numeric text-[var(--ink)]">{Number(amount).toFixed(2)}</dd>
+                  </div>
+                ))
+              )}
+            </dl>
+
+            {!('USDC' in balances) && (
+              <div className="mt-3 border-t border-[var(--edge)] pt-3">
+                <p className="text-xs leading-relaxed text-[var(--ink-dim)]">
+                  Stellar requires a trustline before an account can hold USDC, and each
+                  one locks a 0.5 XLM reserve. Pollar sponsors it — which is the whole
+                  point: a farmer who has never held XLM can still receive stablecoins.
+                </p>
+                <Button className="mt-2.5" onClick={enableUsdc} disabled={trustlineBusy}>
+                  {trustlineBusy ? <Spinner /> : null} Enable USDC
+                </Button>
+              </div>
+            )}
+
+            {'USDC' in balances && Number(balances.USDC) === 0 && (
+              <p className="mt-3 border-t border-[var(--edge)] pt-3 text-xs leading-relaxed text-[var(--ink-dim)]">
+                Trustline established, balance zero. Fund this address at{' '}
+                <a
+                  href="https://faucet.circle.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
+                >
+                  faucet.circle.com
+                </a>{' '}
+                (Stellar Testnet) to deposit into a venue.
+              </p>
+            )}
+          </div>
+
+          {depositError && (
+            <div className="rounded-lg border border-[color-mix(in_srgb,var(--amber)_42%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--amber-bright)]">
+              {depositError}
+            </div>
+          )}
+
           <div>
             <div className="mb-2.5 flex items-center justify-between gap-3">
               <p className="panel-heading">Earn venues, read with this session</p>
@@ -358,6 +579,21 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
                         {String(row.provider)}
                       </p>
                     ) : null}
+
+                    {/* Gated on a real balance. Offering a deposit the wallet
+                        cannot fund would fail at the signature and read as a
+                        broken integration rather than an empty account. */}
+                    {Number(balances.USDC ?? 0) > 0 && (
+                      <Button
+                        className="mt-2.5"
+                        variant="primary"
+                        onClick={() => depositToEarn(o, depositAmount(balances.USDC))}
+                        disabled={depositing}
+                      >
+                        {depositing ? <Spinner /> : null} Deposit{' '}
+                        {depositAmount(balances.USDC)} USDC
+                      </Button>
+                    )}
                   </li>
                 );
               })}
@@ -376,4 +612,19 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
       )}
     </Panel>
   );
+}
+
+/**
+ * How much of the wallet's USDC to commit.
+ *
+ * Deliberately not the whole balance: a venue deposit still needs the account
+ * to keep enough to pay its own way, and a demo that empties the wallet cannot
+ * be run twice. Ten percent also matches the corridor's climate-buffer share,
+ * so the figure means something rather than being an arbitrary slice.
+ */
+function depositAmount(balance: string | undefined): string {
+  const available = Number(balance ?? 0);
+  if (!Number.isFinite(available) || available <= 0) return '0';
+  const tenth = Math.floor(available * 0.1 * 100) / 100;
+  return (tenth >= 0.01 ? tenth : Math.min(available, 0.01)).toFixed(2);
 }
