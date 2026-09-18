@@ -47,3 +47,6 @@ next-env.d.ts
 # Local env (contains testnet secrets written by scripts/deploy.sh)
 .env.local
 .env*.local
+
+.vercel
+.env*

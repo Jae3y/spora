@@ -128,6 +128,10 @@ export default function HowItWorksPage() {
               body={`${liveRails.length} of ${rails.length} rails are answering live right now. The rest run against documented mocks with authentic payload shapes and real cryptography — the HMAC signing, the idempotency guard and the EMVCo checksums all execute regardless. Badges across this site report probe results, never configuration.`}
             />
             <Limit
+              title="The event log is a cache, the chain is the truth"
+              body="Escrow balances are read from the deployed contract and survive anything this application does. The audit event stream and member settlement flags are held in process memory, so a serverless cold start rebuilds them from the seeded roster. Money figures persist; the narrative around them may restart."
+            />
+            <Limit
               title="Single corridor, single season"
               body={`This is calibrated to ${COOPERATIVE.lga} and the ${POLICY.season} rainy season. The thresholds are not universal constants; a different agro-ecological zone needs its own calibration against its own rainfall history.`}
             />
