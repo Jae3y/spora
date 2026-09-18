@@ -87,7 +87,69 @@ export default function CooperativePage() {
           title="Founding members"
           subtitle="Pledges scale with land under cultivation, which is also what scales exposure to a failed season."
         >
-          <div className="thin-scroll -mx-1 overflow-x-auto px-1">
+          {/*
+            Two renderings of the same roster.
+
+            A four-column table inside a horizontal scroller technically fits on
+            a phone, but it asks the reader to swipe sideways to find out what a
+            number means -- and a column header they have scrolled away from
+            explains nothing. Below `sm` each member becomes a card where every
+            figure sits next to its own label; at `sm` and above the table
+            returns, because scanning eight rows down a column is genuinely
+            faster once there is room for it.
+          */}
+          <ul className="space-y-2 sm:hidden">
+            {MEMBERS.map((member) => (
+              <li key={member.id} className="panel-sunken px-3.5 py-3">
+                <p className="text-sm font-medium text-[var(--ink)]">{member.name}</p>
+                <p className="numeric mt-0.5 text-[0.6875rem] text-[var(--ink-dim)]">
+                  {member.id} · {member.phone}
+                </p>
+                <dl className="mt-2.5 grid grid-cols-3 gap-2 border-t border-[var(--edge)] pt-2.5 text-xs">
+                  <div>
+                    <dt className="text-[var(--ink-dim)]">Hectares</dt>
+                    <dd className="numeric mt-0.5 text-[var(--ink-muted)]">
+                      {member.hectares}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--ink-dim)]">Pledge ₦</dt>
+                    <dd className="numeric mt-0.5 text-[var(--ink-muted)]">
+                      {Math.round(member.usd * FX_RATES.ngnPerUsd).toLocaleString('en-US')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[var(--ink-dim)]">Pledge $</dt>
+                    <dd className="numeric mt-0.5 text-[var(--ink)]">{member.usd}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+            <li className="panel-sunken px-3.5 py-3">
+              <p className="panel-heading">Total pledged</p>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <dt className="text-[var(--ink-dim)]">Hectares</dt>
+                  <dd className="numeric mt-0.5 text-[var(--ink-muted)]">{totalHectares}</dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--ink-dim)]">₦</dt>
+                  <dd className="numeric mt-0.5 text-[var(--ink-muted)]">
+                    {Math.round(pledgedNgn).toLocaleString('en-US')}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--ink-dim)]">$</dt>
+                  <dd className="numeric mt-0.5 font-semibold text-[var(--green-bright)]">
+                    {TOTAL_PLEDGED_USD.toLocaleString('en-US')}
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          </ul>
+
+          <div className="hidden sm:block">
+            <div className="thin-scroll -mx-1 overflow-x-auto px-1">
             <table className="w-full min-w-[30rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--edge)] text-left">
@@ -140,6 +202,8 @@ export default function CooperativePage() {
                 </tr>
               </tfoot>
             </table>
+          </div>
+
           </div>
 
           <p className="mt-4 text-xs leading-relaxed text-[var(--ink-dim)]">
