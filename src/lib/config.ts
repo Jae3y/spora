@@ -177,7 +177,22 @@ export const ingressProviderId: IngressProviderId = (() => {
 })();
 
 export const appConfig = {
-  host: env('NEXT_PUBLIC_HOST') ?? 'http://localhost:3000',
+  /**
+   * Public origin of this deployment.
+   *
+   * `VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL` are injected by the
+   * platform and are the only values that are correct *before* the deployment
+   * has a URL to configure. Without this fallback a production build inherits
+   * `http://localhost:3000` from the developer's env, and every self-directed
+   * callback quietly targets the deploying machine instead of the deployment.
+   *
+   * Neither Vercel variable carries a scheme, so one is added.
+   */
+  host:
+    env('NEXT_PUBLIC_HOST') ??
+    withScheme(env('VERCEL_PROJECT_PRODUCTION_URL')) ??
+    withScheme(env('VERCEL_URL')) ??
+    'http://localhost:3000',
   /**
    * When true, mock engines reproduce realistic network latency. Disabled in
    * tests so the suite does not spend wall-clock time simulating the transfer rail.
@@ -259,4 +274,11 @@ export function railStatuses(): RailStatus[] {
       detail: `Archive + forecast precipitation for ${KANO_COORDINATES.label}`,
     },
   ];
+}
+
+
+/** Prefix a bare host with https, leaving a full URL untouched. */
+function withScheme(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return /^https?:\/\//.test(value) ? value : `https://${value}`;
 }

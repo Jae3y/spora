@@ -1,5 +1,5 @@
 import { fail, fromError, ok, readJson } from '@/lib/api';
-import { appConfig, kotaniMode } from '@/lib/config';
+import { kotaniMode } from '@/lib/config';
 import { activeIngress } from '@/lib/ingress';
 import {
   buildMockWebhookCallback,
@@ -69,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
   const action = typeof body.action === 'string' ? body.action : 'initiate';
 
   try {
-    if (action === 'confirm') return await confirmPin(body);
+    if (action === 'confirm') return await confirmPin(body, request);
     if (action === 'checkout') return await checkout(body);
     return await initiate(body);
   } catch (error) {
@@ -192,7 +192,10 @@ async function checkout(body: Record<string, unknown>): Promise<Response> {
  * handset simulation, and treating the value as a secret regardless is the
  * only defensible way to model it.
  */
-async function confirmPin(body: Record<string, unknown>): Promise<Response> {
+async function confirmPin(
+  body: Record<string, unknown>,
+  request: Request,
+): Promise<Response> {
   const reference = String(body.reference ?? '');
   const phoneNumber = String(body.phoneNumber ?? '');
   const amountNgn = Number(body.amountNgn);
@@ -229,7 +232,15 @@ async function confirmPin(body: Record<string, unknown>): Promise<Response> {
 
   // Deliberately a real HTTP round trip through the public webhook route, so
   // the signature, freshness and idempotency checks all actually run.
-  const response = await fetch(`${appConfig.host}/api/kotani/webhook`, {
+  //
+  // The origin comes from the incoming request rather than from config. A
+  // configured host is a guess about where this code is deployed, and a wrong
+  // guess sends the callback somewhere else entirely -- on a preview
+  // deployment it would hit production, and on production with a stale env it
+  // would hit the developer's laptop. The request always knows where it is.
+  const origin = new URL(request.url).origin;
+
+  const response = await fetch(`${origin}/api/kotani/webhook`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
