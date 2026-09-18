@@ -39,6 +39,15 @@ interface PushSession {
   mode: 'live' | 'mock';
 }
 
+interface IngressInfo {
+  provider: string;
+  displayName: string;
+  rail: string;
+  live: boolean;
+  supportsCheckout: boolean;
+  detail: string;
+}
+
 interface Settlement {
   transferRef: string;
   transactionId: string;
@@ -68,10 +77,75 @@ export function TransferModal({
   const [amountNgn, setAmountNgn] = useState('316000');
   const [pin, setPin] = useState('');
   const [session, setSession] = useState<PushSession | null>(null);
+
+  /**
+   * Which rail is actually collecting.
+   *
+   * Asked of the server rather than inferred, because the secret key that
+   * decides this is server-only by design. Rendering a "Pay with Paystack"
+   * button above an unconfigured rail would be exactly the false claim the
+   * rail badges exist to prevent.
+   */
+  const [ingress, setIngress] = useState<IngressInfo | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/kotani/stk-push', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!cancelled && json?.ok) setIngress(json.data as IngressInfo);
+      })
+      .catch(() => {
+        /* The USSD simulation works regardless; a failed probe just means no
+           live button is offered. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Hand off to the provider's hosted page.
+   *
+   * The window is opened from inside the click handler, not from the `.then`.
+   * Safari's popup blocker only trusts a window opened synchronously during a
+   * user gesture, and one opened after an await is silently swallowed.
+   */
+  async function startCheckout() {
+    setPhase('dispatching');
+    setError(null);
+    const tab = window.open('', '_blank');
+    try {
+      const response = await fetch('/api/kotani/stk-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'checkout',
+          phoneNumber,
+          amountNgn: Number(amountNgn),
+          cooperativeId: 'KANO-COOP-01',
+          memberId: 'WALKIN',
+        }),
+      });
+      const json = await response.json();
+      if (!json?.ok) throw new Error(json?.error?.message ?? 'Checkout failed');
+
+      const url = json.data.authorizationUrl as string | null;
+      setCheckoutUrl(url);
+      if (url && tab) tab.location.href = url;
+      else if (tab) tab.close();
+      setPhase('compose');
+    } catch (cause) {
+      tab?.close();
+      setError((cause as Error).message);
+      setPhase('error');
+    }
+  }
 
   const reset = useCallback(() => {
     setPhase('compose');
@@ -226,10 +300,54 @@ export function TransferModal({
               </div>
             )}
 
-            <div className="flex gap-2 pt-1">
+            {/* Live rail first when one is connected. The simulation stays
+                available beside it rather than being replaced: it is the
+                product story, and it must keep working when a third party is
+                unreachable. */}
+            {ingress?.live && ingress.supportsCheckout && (
+              <div className="rounded-lg border border-[color-mix(in_srgb,var(--green)_34%,transparent)] bg-[color-mix(in_srgb,var(--green)_8%,transparent)] px-3.5 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-[var(--ink)]">
+                    {ingress.displayName} is live
+                  </span>
+                  <span className="badge badge-land scale-90">
+                    <span className="pulse-dot" aria-hidden />
+                    LIVE
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-dim)]">
+                  {ingress.detail}
+                </p>
+                {checkoutUrl && (
+                  <a
+                    href={checkoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="numeric mt-2 block break-all text-xs text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
+                  >
+                    {checkoutUrl}
+                  </a>
+                )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              {ingress?.live && ingress.supportsCheckout && (
+                <Button
+                  variant="primary"
+                  onClick={startCheckout}
+                  disabled={phase === 'dispatching' || phase === 'processing'}
+                >
+                  {phase === 'dispatching' ? <Spinner /> : null} Pay ₦
+                  {Number(amountNgn || 0).toLocaleString('en-US')} with {ingress.displayName}
+                </Button>
+              )}
               {(phase === 'compose' || phase === 'error') && (
-                <Button variant="primary" onClick={dispatchPush}>
-                  Request transfer
+                <Button
+                  variant={ingress?.live && ingress.supportsCheckout ? 'default' : 'primary'}
+                  onClick={dispatchPush}
+                >
+                  Simulate USSD transfer
                 </Button>
               )}
               {phase === 'dispatching' && (

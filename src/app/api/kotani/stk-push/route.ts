@@ -1,5 +1,6 @@
 import { fail, fromError, ok, readJson } from '@/lib/api';
 import { appConfig, kotaniMode } from '@/lib/config';
+import { activeIngress } from '@/lib/ingress';
 import {
   buildMockWebhookCallback,
   initiateKotaniStkPush,
@@ -16,6 +17,14 @@ import { appendAuditEvent, markMemberPending } from '@/lib/store/ledger';
  * - `initiate` sends the push and the handset displays a PIN prompt;
  * - `confirm` represents the member entering that PIN.
  *
+ * A third action, `checkout`, hands off to whichever ingress provider is
+ * configured. Where Kotani pushes a prompt to the handset, Paystack and
+ * Flutterwave collect by redirect, so this action returns a hosted
+ * authorisation URL instead of a PIN prompt. It is kept separate from
+ * `initiate` on purpose: the USSD simulation is the product story and must
+ * keep working whether or not a live provider is connected, and collapsing the
+ * two would make the demo depend on a third party being reachable.
+ *
  * In mock mode `confirm` does something deliberately roundabout: it builds a
  * genuinely HMAC-signed callback and **POSTs it to our own webhook endpoint**
  * over HTTP, rather than calling the settlement logic directly. That means the
@@ -27,6 +36,32 @@ import { appendAuditEvent, markMemberPending } from '@/lib/store/ledger';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Which provider is collecting, so the interface can offer the right control.
+ *
+ * The client cannot infer this: secret keys are server-only by design, and a
+ * button that says "Pay with Paystack" above an unconfigured rail is exactly
+ * the kind of false claim the rail badges exist to prevent.
+ */
+export async function GET(): Promise<Response> {
+  const provider = activeIngress();
+  const health = await provider.health();
+
+  return ok(
+    {
+      provider: provider.id,
+      displayName: provider.displayName,
+      rail: provider.rail,
+      configured: provider.configured,
+      live: health.authenticated,
+      detail: health.detail,
+      // Kotani pushes to the handset; the others redirect to a hosted page.
+      supportsCheckout: provider.id !== 'kotani',
+    },
+    { mode: health.authenticated ? 'live' : 'mock' },
+  );
+}
+
 export async function POST(request: Request): Promise<Response> {
   const body = (await readJson(request)) as Record<string, unknown> | null;
   if (!body) return fail('MALFORMED_JSON', 'Request body must be JSON', 400);
@@ -35,6 +70,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     if (action === 'confirm') return await confirmPin(body);
+    if (action === 'checkout') return await checkout(body);
     return await initiate(body);
   } catch (error) {
     return fromError(error);
@@ -81,6 +117,66 @@ async function initiate(body: Record<string, unknown>): Promise<Response> {
       transactionId: result.transactionId,
       reference: result.reference,
       estimatedUsdc: result.estimatedUsdc,
+    },
+  });
+
+  return ok(result, { mode: result.mode });
+}
+
+/**
+ * Collect through the configured provider's own hosted flow.
+ *
+ * Nothing is credited here. The escrow moves only when the provider calls the
+ * webhook and that callback passes signature, freshness and idempotency --
+ * returning a checkout URL is a request for money, not a receipt for it.
+ */
+async function checkout(body: Record<string, unknown>): Promise<Response> {
+  const phoneNumber = String(body.phoneNumber ?? '');
+  const amountNgn = Number(body.amountNgn);
+
+  if (!phoneNumber) return fail('INVALID_PHONE', 'phoneNumber is required', 400);
+  if (!Number.isFinite(amountNgn) || amountNgn <= 0) {
+    return fail('INVALID_AMOUNT', 'amountNgn must be a positive number', 400);
+  }
+
+  const provider = activeIngress();
+  const normalised = normaliseNigerianPhone(phoneNumber);
+
+  const result = await provider.initiate({
+    phoneNumber: normalised,
+    amountNgn,
+    cooperativeId: String(body.cooperativeId ?? 'KANO-COOP-01'),
+    memberId: String(body.memberId ?? 'WALKIN'),
+    memberName: typeof body.memberName === 'string' ? body.memberName : undefined,
+  });
+
+  if (!result.success) {
+    return fail('CHECKOUT_FAILED', result.customerMessage, 502, { provider: provider.id });
+  }
+
+  // The pledge is marked pending so the pooling matrix shows the member as
+  // in-flight. It is only marked settled by the webhook.
+  markMemberPending({
+    phoneNumber: normalised,
+    amountNgn,
+    stroops: ngnToStroops(amountNgn).toString(),
+    name: typeof body.memberName === 'string' ? body.memberName : undefined,
+  });
+
+  appendAuditEvent({
+    category: 'ingress',
+    event: 'checkout_created',
+    summary:
+      `${provider.displayName} checkout created for ${maskPhone(normalised)}, ` +
+      `₦ ${amountNgn.toLocaleString('en-US')} (ref ${result.reference}).`,
+    txHash: null,
+    mode: result.mode,
+    detail: {
+      provider: provider.id,
+      reference: result.reference,
+      transactionId: result.transactionId,
+      estimatedUsdc: result.estimatedUsdc,
+      authorizationUrl: result.authorizationUrl,
     },
   });
 
