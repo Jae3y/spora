@@ -9,6 +9,7 @@ import {
 } from '@/lib/config';
 import { computeRevenue, formatUsdc, REVENUE_POLICY } from '@/lib/money';
 import { gasSponsorshipStatus } from '@/lib/pollar/gas-sponsor';
+import { activeIngress } from '@/lib/ingress';
 import { pollarHealth } from '@/lib/pollar/health';
 import { resolveDeferredStatus } from '@/lib/pollar/funding';
 import { oraclePublicKey } from '@/lib/oracle/weather';
@@ -67,19 +68,38 @@ export async function GET(): Promise<Response> {
 
     const supplier = await resolveDeferredStatus('supplier:caranavi-biofert-srl');
 
-    // The Pollar badge must earn its "live". A configured key that fails to
+    // Both badges must earn their "live". A configured key that fails to
     // authenticate is reported as mock with the provider's own reason, rather
     // than as a green badge over a dead rail.
-    const pollar = await pollarHealth();
-    const rails = railStatuses().map((r) =>
-      r.rail.startsWith('Pollar')
-        ? {
-            ...r,
-            mode: (pollar.authenticated ? 'live' : 'mock') as 'live' | 'mock',
-            detail: pollar.detail,
-          }
-        : r,
-    );
+    //
+    // The ingress row names whichever provider is *actually* collecting. It
+    // was hardcoded to Kotani, which understated the corridor once Paystack
+    // was connected: the row read "Kotani — mock" while a live Paystack rail
+    // sat behind it. A badge that is wrong in the modest direction is still
+    // wrong, and here it hid the one rail that had started working.
+    const [pollar, ingress] = await Promise.all([
+      pollarHealth(),
+      activeIngress().health(),
+    ]);
+    const provider = activeIngress();
+
+    const rails = railStatuses().map((r) => {
+      if (r.rail.startsWith('Pollar')) {
+        return {
+          ...r,
+          mode: (pollar.authenticated ? 'live' : 'mock') as 'live' | 'mock',
+          detail: pollar.detail,
+        };
+      }
+      if (r.rail.startsWith('Kotani')) {
+        return {
+          rail: `${provider.displayName} (Nigeria ingress)`,
+          mode: (ingress.authenticated ? 'live' : 'mock') as 'live' | 'mock',
+          detail: ingress.detail,
+        };
+      }
+      return r;
+    });
 
     return ok(
       {
@@ -91,7 +111,11 @@ export async function GET(): Promise<Response> {
           origin: CARANAVI_COORDINATES,
           destination: KANO_COORDINATES,
           stages: [
-            { id: 'ngn', label: 'Naira Transfer', rail: 'NIBSS instant transfer via Kotani Pay' },
+            {
+              id: 'ngn',
+              label: 'Naira Transfer',
+              rail: `NIBSS instant transfer via ${provider.displayName}`,
+            },
             { id: 'usdc', label: 'Stellar USDC Escrow', rail: 'Soroban parametric contract' },
             { id: 'float', label: 'Pollar Blend Float Vault', rail: 'Blend / DeFindex Earn' },
             { id: 'bob', label: 'Bolivian BOB QR Bancario', rail: 'ASFI QR Simple' },

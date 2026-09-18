@@ -75,20 +75,47 @@ async function probe(): Promise<RailHealth> {
   }
 
   try {
-    // `/ramps/countries` is the cheapest authenticated read the SDK exposes:
-    // no body, no side effects, and it fails closed on a bad key.
-    const response = await fetch(`${pollarConfig.baseUrl}/v2/ramps/countries`, {
+    /**
+     * `/applications/config` is the only read authenticated by the application
+     * key alone.
+     *
+     * Almost everything else on this API -- ramps, swap, earn, kyc -- is
+     * scoped to an *end user* and answers `401 SDK_AUTH_INVALID_TOKEN` without
+     * a DPoP-bound session, no matter how valid the application key is. The
+     * probe used `/ramps/countries` and therefore reported this rail dead
+     * while it was working perfectly.
+     *
+     * It is also the more honest probe: it returns this application's own
+     * record, so a green badge means "Pollar knows who we are and what chain
+     * we are on", not merely "something answered".
+     */
+    const response = await fetch(`${pollarConfig.baseUrl}/v2/applications/config`, {
       headers: pollarHeaders(key),
       signal: AbortSignal.timeout(8_000),
       cache: 'no-store',
     });
 
     if (response.ok) {
+      // Report the identity Pollar returned rather than the one we configured.
+      // Echoing our own config back would make a mismatched app look correct.
+      let app = '';
+      try {
+        const body = (await response.json()) as {
+          content?: { application?: { name?: string; network?: string; chains?: string[] } };
+        };
+        const a = body?.content?.application;
+        if (a?.name) {
+          app = ` as "${a.name}" on ${a.network ?? 'unknown'} (${(a.chains ?? []).join(', ')})`;
+        }
+      } catch {
+        /* a 200 with an unreadable body still proves authentication */
+      }
+
       return {
         reachable: true,
         authenticated: true,
         status: response.status,
-        detail: `Authenticated against ${pollarConfig.baseUrl}/v2 (${pollarConfig.network}).`,
+        detail: `Authenticated against ${pollarConfig.baseUrl}/v2${app}.`,
         checkedAt: now,
       };
     }
@@ -162,6 +189,12 @@ function explain(status: number, code: string): string {
     return (
       `Wrong key type for this endpoint${code}. Public reads need the ` +
       `pub_… publishable key; sec_… is for the privileged server surface.`
+    );
+  }
+  if (code.includes('SDK_AUTH_INVALID_TOKEN')) {
+    return (
+      `Application key accepted, but this endpoint needs an end-user session${code}. ` +
+      `Ramps, swap and earn are user-scoped and require a DPoP-bound login.`
     );
   }
   if (code.includes('API_KEY_NOT_FOUND') || status === 401) {

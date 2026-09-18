@@ -1,18 +1,23 @@
 # Spora
 
-**Cross-continental parametric climate escrow.** Smallholder coffee farmer
-cooperatives in **Nyeri, Kenya** finance biological soil inputs from exporters in
-**Caranavi, Bolivia**, with an automated drought circuit breaker governed by
-satellite precipitation telemetry.
+**Cross-continental parametric climate escrow.** The Dawakin Kudu Farmers
+Cooperative — eight smallholders farming 46 hectares of rain-fed maize and
+sorghum in **Kano State, Nigeria** — finances biological soil inputs from an
+exporter in **Caranavi, Bolivia**, with an automated drought circuit breaker
+governed by satellite precipitation telemetry.
 
-Stellar Soroban · Pollar SDK v0.11.3 · Kotani Pay · Open-Meteo
+Stellar Soroban · Pollar SDK v0.11.3 · Paystack · Open-Meteo
+
+**Live:** <https://spora-jackson-abetianbes-projects.vercel.app>
+**Contract:** [`CB3L4HIOKM5A...O7MK`](https://stellar.expert/explorer/testnet/contract/CB3L4HIOKM5A6YGYAD4JSRHZYCPLWNJ26DN4YBBINBIGSDLXT4JDO7MK) on Stellar testnet
 
 ---
 
 ## What it does
 
-Shillings are pooled from farmers' M-Pesa wallets, aggregated into native
-Stellar USDC, and held in a Soroban escrow. Ninety percent buys inputs; ten
+Naira is collected over NIBSS instant transfer — the rail behind every
+Nigerian bank app and USSD code — aggregated into native Stellar USDC, and held
+in a Soroban escrow. Ninety percent buys inputs; ten
 percent is held back as a climate buffer that earns yield in a Blend pool or
 DeFindex vault while the shipment crosses the Atlantic. The supplier is paid in
 Bolivianos against an ASFI-conformant QR Simple code.
@@ -20,13 +25,41 @@ Bolivianos against an ASFI-conformant QR Simple code.
 If the rains fail, nobody has to file a claim. A signed satellite reading
 showing **under 20 mm of rain over 21 days *and* 21+ consecutive dry days**
 fires the contract's circuit breaker, which splits the escrow **60% emergency
-cash relief to the Kenyan farmers / 40% input indemnity to the Bolivian
+cash relief to the Kano cooperative / 40% input indemnity to the Bolivian
 supplier** — atomically, in the same transaction that accepts the reading.
 
 ```
- KES Mobile Money  →  Stellar USDC Escrow  →  Pollar Float Vault  →  BOB QR Bancario
-   Kotani Pay           Soroban contract        Blend / DeFindex        ASFI QR Simple
+ NGN bank transfer →  Stellar USDC Escrow  →  Pollar Float Vault  →  BOB QR Bancario
+   Paystack / NIBSS     Soroban contract        Blend / DeFindex        ASFI QR Simple
 ```
+
+---
+
+## What is live right now
+
+Every badge in the interface is a **probe result**, not a check for whether an
+API key string exists. A rail marked `mock` is genuinely not connected, and a
+rail marked `live` answered an authenticated request within the last minute.
+
+| Rail | Status | What "live" means here |
+|---|---|---|
+| Paystack — naira ingress | **live** | Real `api.paystack.co` calls creating real checkout URLs. Test mode: the API and its webhooks are genuine, the money is not. |
+| Pollar — wallets, Earn, BOB egress | **live** | Authenticated as application `Spora` on `testnet`, chain `STELLAR`. |
+| Soroban escrow contract | **live** | Deployed and initialized on Stellar testnet. Balances on every page are read from chain. |
+| Gas-wallet fee-bump sponsorship | **live** | Envelopes signed as real `FeeBumpTransactionEnvelope`s. |
+| Open-Meteo climate oracle | **live** | ECMWF IFS, NOAA GFS and DWD ICON, read per request. |
+
+**What is still simulated, stated plainly:** the escrow's full USD 2,000 demo
+balance runs against the process-local mirror, because Circle's testnet faucet
+dispenses 20 USDC every two hours and `deposit_funds` performs a real
+`token::transfer`. Contract *reads* are live on every page; the large demo
+*writes* are mirrored. The audit trail records each one as a reconciliation
+item rather than reporting a success that did not happen.
+
+Kotani Pay remains implemented and selectable — it is the only provider that
+does NGN collection *and* stablecoin settlement in one hop — but we could not
+obtain credentials before the deadline, so Paystack collects instead. Swapping
+back is one environment variable: `INGRESS_PROVIDER=kotani`.
 
 ---
 
@@ -45,15 +78,24 @@ npm run seed     # in a second terminal
 Open <http://localhost:3000>. Drag the **Simulate Climate Volatility** slider
 past 21 dry days with rainfall under 20 mm to fire the circuit breaker.
 
+### Deploying the contract
+
+The host toolchain must be `gnu`, and the wasm must be rewritten to baseline
+encoding before Soroban will accept it — see *Two build notes* below for why.
+
+```bash
+npm run deploy      # build + wasm-opt + deploy + initialize
+npm run fund:usdc   # USDC trustlines for the cooperative and supplier
+```
+
 To run against live rails, copy `.env.example` to `.env.local` and fill in what
 you have. Each rail is independent — a missing Kotani key does not disable
 Pollar, and the dashboard shows a live/mock badge per rail.
 
-### Deploying the contract
+### Contract tests
 
 ```bash
-npm run contract:test          # 26 unit tests (Windows: see build notes)
-./scripts/deploy.sh            # build, optimize, deploy, initialize, write .env.local
+npm run contract:test          # 26 unit tests
 ```
 
 `deploy.sh` generates and funds five testnet identities, deploys, initializes
@@ -111,7 +153,7 @@ One rule governs every colour, and it can be taught in a sentence:
 
 | | |
 |---|---|
-| **Green** | land. Farms, harvest, Nyeri, things growing, things safe. |
+| **Green** | land. Farms, harvest, Kano, things growing, things safe. |
 | **Blue** | water. The Atlantic crossing, the chain, money settling. |
 | **Amber** | motion. Value in flight, not yet landed. |
 | **Red** | drought. Nothing else. Ever. |
@@ -330,6 +372,24 @@ which reshaped the `CryptoRng` trait. The host's own `testutils.rs` then fails
 to compile. The workspace pins `ed25519-dalek = "2.2"` to cap that resolution;
 see the comment in `Cargo.toml`.
 
+**Rust 1.82+ emits wasm Soroban cannot parse.** The upload fails with
+`reference-types not enabled: zero byte expected`. The cause is not this
+crate's codegen: rustup ships a *precompiled* `core` for `wasm32-unknown-unknown`
+that uses the reference-types encoding of `call_indirect`, so no `RUSTFLAGS`
+value reaches it — `-C target-feature=-reference-types` and `-C target-cpu=mvp`
+both leave the offending bytes in place.
+
+The fix is to re-emit the finished module in baseline encoding with Binaryen.
+Nothing here uses reference types semantically, so the rewrite is lossless;
+it only changes how `call_indirect` writes its table index.
+
+```bash
+wasm-opt spora_escrow.wasm -o spora_escrow.optimized.wasm   -Oz --mvp-features --enable-sign-ext --enable-mutable-globals
+```
+
+`npm run deploy` does this automatically, and `scripts/deploy.ts` prefers the
+rewritten module when it exists.
+
 **Windows needs a host C linker.** The `x86_64-pc-windows-gnu` toolchain that
 rustup ships includes `dlltool` and `ld` but no assembler, and GNU `dlltool`
 shells out to `as`. Building the native test harness therefore needs MinGW-w64
@@ -357,7 +417,7 @@ The wasm build needs no host linker on any platform.
   self-consistent within one run but do not survive a restart. There is
   deliberately no checked-in fallback.
 - Mobile numbers are masked everywhere they are logged or rendered.
-- The M-Pesa PIN in the handset simulation is shape-checked locally and never
+- The wallet PIN in the handset simulation is shape-checked locally and never
   transmitted, stored, or logged. On the real rail, PIN entry happens inside the
   SIM applet and never reaches an application server at all.
 - The in-memory ledger is the right scope for a demo and explicitly **not** a
