@@ -93,6 +93,7 @@ export const stellarConfig = {
   oracleSecret: env('ORACLE_SECRET_KEY'),
   gasWalletSecret: env('POLLAR_GAS_WALLET_SECRET'),
   cooperativeSecret: env('COOPERATIVE_SECRET'),
+  supplierSecret: env('SUPPLIER_SECRET'),
 } as const;
 
 export const pollarConfig = {

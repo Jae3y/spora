@@ -10,6 +10,7 @@ import {
 import { computeRevenue, formatUsdc, REVENUE_POLICY } from '@/lib/money';
 import { gasSponsorshipStatus } from '@/lib/pollar/gas-sponsor';
 import { activeIngress } from '@/lib/ingress';
+import { onChainPayouts } from '@/lib/soroban/payouts';
 import { pollarHealth } from '@/lib/pollar/health';
 import { resolveDeferredStatus } from '@/lib/pollar/funding';
 import { oraclePublicKey } from '@/lib/oracle/weather';
@@ -77,9 +78,10 @@ export async function GET(): Promise<Response> {
     // was connected: the row read "Kotani — mock" while a live Paystack rail
     // sat behind it. A badge that is wrong in the modest direction is still
     // wrong, and here it hid the one rail that had started working.
-    const [pollar, ingress] = await Promise.all([
+    const [pollar, ingress, payouts] = await Promise.all([
       pollarHealth(),
       activeIngress().health(),
+      onChainPayouts(),
     ]);
     const provider = activeIngress();
 
@@ -103,7 +105,7 @@ export async function GET(): Promise<Response> {
 
     return ok(
       {
-        escrow: onChain ?? mirror,
+        escrow: withOnChainPayouts(onChain ?? mirror, payouts),
         mirror,
         onChain,
         chainError,
@@ -232,4 +234,44 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return fromError(error);
   }
+}
+
+/**
+ * Overlay the counterparties' real balances onto the escrow view.
+ *
+ * The contract moves the settlement funds but never writes the per-leg amounts
+ * to storage, so `get_escrow` cannot report them and the mirror -- which a
+ * serverless cold start rebuilds empty -- was answering `0.00` for both sides
+ * immediately after a settlement that genuinely paid out. An interface that
+ * understates a real payout costs the same credibility as one that invents a
+ * fake one.
+ *
+ * Applied only once the escrow is terminal. Before settlement these accounts
+ * may legitimately hold funds from elsewhere, and reporting those as "relief
+ * paid" would be the invented-payout failure in the other direction.
+ */
+function withOnChainPayouts<T extends { status: string }>(
+  escrow: T,
+  payouts: { cooperative: string | null; supplier: string | null },
+): T {
+  const settled =
+    escrow.status === 'ParametricTriggered' || escrow.status === 'Completed';
+  if (!settled) return escrow;
+
+  return {
+    ...escrow,
+    ...(payouts.cooperative !== null
+      ? { cooperativePaidStroops: toStroops(payouts.cooperative) }
+      : {}),
+    ...(payouts.supplier !== null
+      ? { supplierPaidStroops: toStroops(payouts.supplier) }
+      : {}),
+  };
+}
+
+/** Horizon returns a 7-dp decimal string; the contract counts in stroops. */
+function toStroops(decimal: string): string {
+  const [whole, fraction = ''] = decimal.split('.');
+  const padded = (fraction + '0000000').slice(0, 7);
+  return (BigInt(whole || '0') * 10_000_000n + BigInt(padded || '0')).toString();
 }
