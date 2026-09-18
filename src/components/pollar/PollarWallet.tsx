@@ -333,7 +333,7 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
           outcome.details ?? outcome.message ?? 'Pollar rejected the deposit.',
         );
       } else {
-        setDeposit({ hash: outcome.hash, venue: name, amount });
+        setDeposit({ hash: outcome.hash, venue: name, amount: `${amount} USDC` });
         if (wallet) await loadBalances(wallet);
       }
     } catch (cause) {
@@ -566,7 +566,7 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
                 <span className="badge badge-land scale-90">ON CHAIN</span>
               </div>
               <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-muted)]">
-                {deposit.amount} USDC deposited into {deposit.venue}. Pollar built the
+                {deposit.amount} sent to {deposit.venue}. Pollar built the
                 transaction, this session signed it, and Stellar settled it.
               </p>
               <a
