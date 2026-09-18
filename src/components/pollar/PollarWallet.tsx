@@ -40,6 +40,9 @@ import { Button, Panel, Spinner } from '@/components/ui/primitives';
 
 type Phase = 'loading' | 'ready' | 'email' | 'code' | 'working' | 'authed' | 'error';
 
+/** The cooperative treasury: a payment destination, so its public key ships. */
+const COOPERATIVE_ADDRESS = process.env.NEXT_PUBLIC_COOPERATIVE_ADDRESS ?? null;
+
 /** Circle's USDC issuer on Stellar testnet -- the asset the escrow settles in. */
 const USDC = {
   code: 'USDC',
@@ -253,9 +256,13 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
         // Leave a little behind so the demo can be run twice, and so the
         // account keeps enough to pay its own way.
         const usdc = Number(next.USDC ?? 0);
-        if (usdc > 0) {
-          const suggested = Math.max(0.01, Math.floor(usdc * 0.8 * 100) / 100);
-          setAmount((current) => current || suggested.toFixed(2));
+        const xlm = Number(next.XLM ?? 0);
+        // XLM keeps a reserve back for the account minimum and fees; USDC has
+        // no such requirement, so more of it can move.
+        const suggested = usdc > 0 ? usdc * 0.8 : Math.max(0, xlm - 5) * 0.2;
+        if (suggested > 0) {
+          const rounded = Math.max(0.01, Math.floor(suggested * 100) / 100);
+          setAmount((current) => current || rounded.toFixed(2));
         }
       })
       .catch(() => {
@@ -327,6 +334,75 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
         );
       } else {
         setDeposit({ hash: outcome.hash, venue: name, amount });
+        if (wallet) await loadBalances(wallet);
+      }
+    } catch (cause) {
+      setDepositError((cause as Error).message);
+    } finally {
+      setDepositing(false);
+    }
+  }
+
+  /**
+   * Pay into the cooperative treasury, through Pollar.
+   *
+   * ## Why this exists alongside the Earn deposit
+   *
+   * Blend and DeFindex are mainnet protocols. On testnet Pollar returns an
+   * empty opportunity list -- not an error, simply nothing to deposit into --
+   * so the Earn path cannot settle a transaction here no matter how correct
+   * the integration is.
+   *
+   * A payment is the same claim with fewer moving parts: Pollar builds the
+   * transaction, this browser session signs it with its DPoP-bound key, and
+   * Pollar submits it to Stellar. Money moves through Pollar either way.
+   *
+   * It is also the truer story. A farmer's embedded wallet paying into the
+   * cooperative's treasury is the first leg of this corridor, which is exactly
+   * what the wallet is for.
+   *
+   * USDC when the wallet holds some, XLM otherwise. Falling back rather than
+   * refusing matters: a testnet trustline and a faucet are two more things
+   * that can be down, and neither has anything to do with whether Pollar can
+   * move value.
+   */
+  async function contribute() {
+    const client = clientRef.current;
+    if (!client || !COOPERATIVE_ADDRESS) return;
+
+    const holdsUsdc = Number(balances.USDC ?? 0) > 0;
+    const available = Number(holdsUsdc ? balances.USDC : (balances.XLM ?? 0));
+    const requested = Number(amount);
+
+    if (!(requested > 0) || requested > available) {
+      setDepositError(
+        `Enter an amount between 0 and ${available.toFixed(2)} ${holdsUsdc ? 'USDC' : 'XLM'}.`,
+      );
+      return;
+    }
+
+    setDepositing(true);
+    setDepositError(null);
+    try {
+      const outcome = await client.sendPayment({
+        chain: 'STELLAR',
+        destination: COOPERATIVE_ADDRESS,
+        amount: requested.toFixed(7),
+        asset: holdsUsdc
+          ? { type: 'credit_alphanum4', code: USDC.code, issuer: USDC.issuer }
+          : { type: 'native' },
+      });
+
+      if (outcome.status === 'error') {
+        setDepositError(
+          outcome.details ?? outcome.message ?? 'Pollar rejected the payment.',
+        );
+      } else {
+        setDeposit({
+          hash: outcome.hash,
+          venue: `the cooperative treasury`,
+          amount: `${requested.toFixed(2)} ${holdsUsdc ? 'USDC' : 'XLM'}`,
+        });
         if (wallet) await loadBalances(wallet);
       }
     } catch (cause) {
@@ -551,6 +627,43 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
             )}
           </div>
 
+          {/* ---- pay into the cooperative, through Pollar ---- */}
+          {(Number(balances.USDC ?? 0) > 0 || Number(balances.XLM ?? 0) > 5) && (
+            <div className="panel-sunken px-4 py-3.5">
+              <p className="panel-heading">Contribute through Pollar</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-dim)]">
+                Pollar builds the transaction, this session signs it with its
+                DPoP-bound key, and Pollar submits it to Stellar. Paying{' '}
+                {Number(balances.USDC ?? 0) > 0 ? 'USDC' : 'XLM'} into the
+                cooperative treasury — the first leg of the corridor.
+              </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="contribute-amount">
+                  Amount to contribute
+                </label>
+                <input
+                  id="contribute-amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  inputMode="decimal"
+                  className="numeric w-28 rounded-lg border border-[var(--edge-bright)] bg-[var(--panel)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--blue)]"
+                />
+                <Button
+                  variant="primary"
+                  onClick={contribute}
+                  disabled={depositing || !(Number(amount) > 0)}
+                >
+                  {depositing ? <Spinner /> : null} Send through Pollar
+                </Button>
+              </div>
+
+              <p className="numeric mt-2 break-all text-[0.6875rem] text-[var(--ink-dim)]">
+                → {COOPERATIVE_ADDRESS ?? 'no destination configured'}
+              </p>
+            </div>
+          )}
+
           {depositError && (
             <div className="rounded-lg border border-[color-mix(in_srgb,var(--amber)_42%,transparent)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--amber-bright)]">
               {depositError}
@@ -570,8 +683,11 @@ export function PollarWallet({ publishableKey }: { publishableKey: string | null
             )}
 
             {!earn.loading && !earn.error && earn.opportunities.length === 0 && (
-              <p className="text-xs text-[var(--ink-dim)]">
-                No venues returned for this network.
+              <p className="text-xs leading-relaxed text-[var(--ink-dim)]">
+                Pollar returned an empty list — not an error. Blend and DeFindex
+                are mainnet protocols, so there are no pools to deposit into on
+                testnet. The call itself succeeded, which is the part that
+                needed a user session.
               </p>
             )}
 
