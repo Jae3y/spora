@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "typeui": {
+      "type": "http",
+      "url": "https://mcp.typeui.sh/mcp"
+    },
+    "appllama": {
+      "type": "http",
+      "url": "https://mcp.appllama.io/mcp"
+    }
+  }
+}

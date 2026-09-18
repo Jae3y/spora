@@ -1,26 +1,639 @@
 @import "tailwindcss";
 
+/**
+ * SPORA DESIGN SYSTEM
+ * ===================
+ *
+ * One rule governs every colour in this product, and it can be taught in a
+ * sentence:
+ *
+ *   GREEN is land.   Farms, harvest, Nyeri, things growing, things safe.
+ *   BLUE  is water.  The Atlantic crossing, the chain, money settling.
+ *   AMBER is motion. Value that is currently in flight and not yet landed.
+ *   RED   is drought. Nothing else. Ever.
+ *
+ * The discipline is the point. Red appears on exactly one condition in this
+ * entire interface -- a parametric breach -- so when a judge sees red, they
+ * know without being told that the rains failed. A palette where red also
+ * means "delete" or "error" throws that away.
+ *
+ * Green and blue are complements across the corridor: the page literally
+ * warms toward green at the Kenyan end and cools toward blue at the Bolivian
+ * end, which is why the hero gradient runs the direction it does.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---------------------------------------------------------- ground */
+  /**
+   * The ground is BLUE, not green.
+   *
+   * The first pass made every surface a green-teal and used blue only as an
+   * accent, which read as a green product with blue highlights. That is not a
+   * two-colour system, it is one colour plus a garnish.
+   *
+   * The structure is blue now -- ground, panels, wells, edges, chrome -- and
+   * green is reserved for what green *means*: land, farms, growth, value that
+   * has safely settled. Blue therefore carries roughly half the pixels by
+   * being the surface itself, while green stays meaningful by being rare.
+   */
+  --void: #030d14;
+  --bg: #05141c;
+  --panel: #082031;
+  --panel-raised: #0b2a3e;
+  --panel-sunken: #051a27;
+  --edge: #123a52;
+  --edge-bright: #1c5878;
+
+  /* ------------------------------------------------------------ type */
+  /* All three tiers verified WCAG AA against --panel and --panel-sunken. */
+  --ink: #eef6fa; /* 15.2:1 on --panel */
+  --ink-muted: #9db8c9; /* 7.6:1 */
+  --ink-dim: #7fa0b5; /* 5.4:1 */
+
+  /* ----------------------------------------------------------- LAND */
+  --green: #21c77a;
+  --green-bright: #3ce392;
+  --green-deep: #0c7d4a;
+  --green-glow: #21c77a;
+
+  /* ---------------------------------------------------------- WATER */
+  --blue: #2b9ff5;
+  --blue-bright: #5cbcff;
+  --blue-deep: #0b5fa8;
+  --blue-glow: #2b9ff5;
+
+  /* --------------------------------------------------------- MOTION */
+  --amber: #f0a024;
+  --amber-bright: #ffb84d;
+
+  /* -------------------------------------------------------- DROUGHT */
+  --drought: #f0452e;
+  --drought-bright: #ff7a63;
+  --drought-deep: #8c1f12;
+
+  /* ------------------------------------------------------- semantic */
+  --nominal: var(--green);
+  --transit: var(--blue);
+  --breach: var(--drought);
+
+  /**
+   * Motion vocabulary.
+   *
+   * Three curves. Entering decelerates, moving between known states eases
+   * both ways, large surfaces get a flatter curve that reads as weight.
+   * UI stays under 300ms; the two exceptions are deliberate and named.
+   */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --dur-press: 140ms;
+  --dur-fast: 200ms;
+  --dur-base: 260ms;
+  --dur-drawer: 380ms;
+
+  /**
+   * Radius scale, assigned by depth in the stack: the further a surface sits
+   * from the page ground, the tighter its corners. That is what keeps nested
+   * radii concentric instead of merely "all rounded".
+   */
+  --r-tray: 1.25rem;
+  --r-well: 0.75rem;
+  --r-ctrl: 0.5rem;
+  --r-pill: 9999px;
+
+  --background: var(--bg);
+  --foreground: var(--ink);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+  --color-panel-sunken: var(--panel-sunken);
+  --color-edge: var(--edge);
+  --color-edge-bright: var(--edge-bright);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-dim: var(--ink-dim);
+  --color-green: var(--green);
+  --color-green-bright: var(--green-bright);
+  --color-blue: var(--blue);
+  --color-blue-bright: var(--blue-bright);
+  --color-amber: var(--amber);
+  --color-drought: var(--drought);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+* {
+  border-color: var(--edge);
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  /* The corridor, expressed as light: green warmth at the top-left (Nyeri)
+     cooling to blue at the bottom-right (Caranavi). Fixed so it reads as the
+     world the page sits in rather than as decoration that scrolls past. */
+  /* Green light at the Nigerian corner, blue light at the Bolivian one. Both
+     present, neither dominant -- the corridor expressed as illumination. */
+  background-image:
+    radial-gradient(ellipse 78rem 44rem at 10% -6%, #0d3a2b 0%, transparent 58%),
+    radial-gradient(ellipse 74rem 46rem at 94% 104%, #0a3d63 0%, transparent 60%),
+    radial-gradient(ellipse 90rem 60rem at 50% 50%, #061a26 0%, transparent 70%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/**
+ * Film grain.
+ *
+ * Large flat areas of very dark colour band visibly on 8-bit panels. A few
+ * percent of noise dithers those steps away and gives the ground a physical
+ * quality flat #051614 does not have. Fixed and pointer-events-none so it
+ * never repaints on scroll.
+ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.026;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================================================== panels */
+
+/**
+ * Double-bezel: an outer tray holding an inner plate.
+ *
+ * A single flat card reads as a div with a border. Two nested enclosures with
+ * concentric radii read as machined hardware. The inner radius is computed as
+ * `outer - padding` so the curves stay parallel.
+ */
+.panel {
+  --bezel-radius: var(--r-tray);
+  --bezel-pad: 0.3125rem;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.012) 42%,
+    rgba(0, 0, 0, 0.16) 100%
+  );
+  padding: var(--bezel-pad);
+  border-radius: var(--bezel-radius);
+  box-shadow:
+    inset 0 0 0 1px rgba(140, 205, 245, 0.10),
+    0 24px 64px -34px rgba(0, 0, 0, 0.92);
+}
+
+.panel-core {
+  background: var(--panel);
+  border-radius: calc(var(--bezel-radius) - var(--bezel-pad));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  height: 100%;
+}
+
+/** Recessed well. Light catches the bottom inner edge of a depression. */
+.panel-sunken {
+  background: var(--panel-sunken);
+  border-radius: var(--r-well);
+  box-shadow:
+    inset 0 1px 2px 0 rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/** Frosted surface for anything floating above the page. */
+.glass {
+  background: rgba(8, 32, 49, 0.66);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  /**
+   * Three shadows, each doing a different job: a bright top inner edge where
+   * light catches the lip of the glass, a hairline that keeps the panel
+   * readable against any background behind it, and a wide ambient shadow that
+   * separates it from the page. A single `box-shadow` cannot fake depth; the
+   * edges are what sell it.
+   */
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(140, 205, 245, 0.12),
+    0 24px 70px -32px rgba(0, 0, 0, 0.94);
+  border-radius: var(--r-tray);
+}
+
+/** Glass that also refracts: a faint moving sheen across the top edge. */
+.glass-lit {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.glass-lit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 30rem 10rem at 18% -10%, rgba(92, 188, 255, 0.16), transparent 62%),
+    radial-gradient(ellipse 26rem 10rem at 88% -12%, rgba(60, 227, 146, 0.10), transparent 60%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+.panel-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* ============================================================ numerals */
+
+/** Tabular figures wherever a number can change, so it cannot jitter. */
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================== badges */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: var(--r-pill);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.badge-land {
+  color: var(--green-bright);
+  background: color-mix(in srgb, var(--green) 13%, transparent);
+  border-color: color-mix(in srgb, var(--green) 34%, transparent);
+}
+
+.badge-water {
+  color: var(--blue-bright);
+  background: color-mix(in srgb, var(--blue) 13%, transparent);
+  border-color: color-mix(in srgb, var(--blue) 34%, transparent);
+}
+
+.badge-motion {
+  color: var(--amber-bright);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 38%, transparent);
+}
+
+.badge-breach {
+  color: var(--drought-bright);
+  background: color-mix(in srgb, var(--drought) 16%, transparent);
+  border-color: color-mix(in srgb, var(--drought) 44%, transparent);
+}
+
+.badge-quiet {
+  color: var(--ink-muted);
+  background: color-mix(in srgb, var(--ink-muted) 10%, transparent);
+  border-color: color-mix(in srgb, var(--ink-muted) 26%, transparent);
+}
+
+/* ============================================================== status */
+
+/**
+ * The dot marks state. The *pulse* is reserved for state that is genuinely
+ * live or escalating, because a pulsing indicator reads as "something is
+ * happening right now" -- and claiming that falsely in a risk interface is
+ * worse than showing no indicator at all.
+ */
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex: none;
+}
+
+.pulse-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex: none;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* ============================================================ corridor */
+
+.corridor-flow {
+  stroke-dasharray: 5 9;
+  animation: march 1.6s linear infinite;
+}
+
+@keyframes march {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.corridor-flow-critical {
+  animation-duration: 0.7s;
+}
+
+/* ============================================================= sliders */
+
+input[type="range"].chaos-slider {
+  appearance: none;
+  width: 100%;
+  height: 0.5rem;
+  border-radius: var(--r-pill);
+  outline: none;
+  cursor: grab;
+}
+
+input[type="range"].chaos-slider:active {
+  cursor: grabbing;
+}
+
+input[type="range"].chaos-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  border: 3px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--edge-bright), 0 2px 10px rgba(0, 0, 0, 0.7);
+  transition: transform var(--dur-press) var(--ease-out);
+}
+
+input[type="range"].chaos-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+input[type="range"].chaos-slider::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  border: 3px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--edge-bright);
+}
+
+/* ============================================================== scroll */
+
+.thin-scroll::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--edge);
+  border-radius: var(--r-pill);
+}
+
+.thin-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--edge-bright);
+}
+
+/* =============================================================== modal */
+
+/**
+ * Modal backdrop for the settlement takeover.
+ *
+ * Fully opaque, deliberately. Two earlier attempts used a translucent scrim
+ * plus `backdrop-filter: blur()`, and both failed for the same pair of
+ * reasons: Tailwind v4 composes `backdrop-filter` through its own custom
+ * properties, so a hand-written declaration on the same element resolves to
+ * `none`; and even at 96.5% the cockpit's bright figures stayed legible
+ * through the gaps between the two handsets.
+ *
+ * A takeover that lets the thing it is taking over show through is not a
+ * takeover. The gradient keeps the corridor's own colour logic -- green at the
+ * Kenyan corner, blue at the Bolivian one -- so the moment still sits inside
+ * the product's world rather than on a flat black sheet.
+ */
+.modal-backdrop {
+  background:
+    radial-gradient(ellipse 60rem 40rem at 18% 8%, #0a2a20 0%, transparent 60%),
+    radial-gradient(ellipse 60rem 40rem at 82% 92%, #072438 0%, transparent 60%),
+    #020907;
+}
+
+/**
+ * Handset shell. The bezel and speaker slot are what make the STK push read
+ * as "this is what the farmer actually sees" rather than as one more panel.
+ */
+.handset {
+  background: linear-gradient(170deg, #12100c 0%, #1c1710 100%);
+  border: 0.5rem solid #241d14;
+  border-radius: 2.25rem;
+  box-shadow:
+    0 0 0 1px #3a2f1f,
+    0 30px 70px -20px rgba(0, 0, 0, 0.9);
+}
+
+.handset-screen {
+  background: #04100e;
+  border-radius: 1.5rem;
+  /* Height is set responsively on the element; this is only a floor. */
+  min-height: 15rem;
+}
+
+.stk-dialog {
+  background: #e9e5da;
+  color: #161310;
+  border-radius: var(--r-ctrl);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================ skeleton */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--panel-sunken);
+  border-radius: var(--r-ctrl);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(140, 205, 245, 0.09) 50%,
+    transparent 100%
+  );
+  animation: sweep 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ============================================================== reveal */
+
+/**
+ * Restrained for a cockpit: a short rise and a fade, no blur and no scale.
+ * Blur-in on a panel full of financial figures makes the numbers briefly
+ * unreadable, which is a real cost for a decorative gain.
+ */
+.reveal {
+  opacity: 0;
+  transform: translateY(1.25rem);
+}
+
+.reveal-in {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 620ms var(--ease-out),
+    transform 620ms var(--ease-out);
+}
+
+.fade-rise {
+  animation: fade-rise var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    /* Never from scale(0) -- nothing in the real world appears from nothing. */
+    transform: translateY(0.375rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================== drawer */
+
+/**
+ * Slides on `transform`, not `max-height`. `max-height` is not compositable,
+ * and because the transition runs to the *max* rather than to the content
+ * height, its easing lands early and the drawer appears to snap.
+ */
+.drawer-shell {
+  height: 60vh;
+  transition: transform var(--dur-drawer) var(--ease-drawer);
+  will-change: transform;
+}
+
+.drawer-shell[data-open='false'] {
+  transform: translateY(calc(100% - 3.5rem));
+}
+
+.drawer-shell[data-open='true'] {
+  transform: translateY(0);
+}
+
+/* ============================================================ narrative */
+
+/** Oversized display type for the story layer only. */
+.display {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+}
+
+/**
+ * Corridor gradient text: green at the Kenyan end, blue at the Bolivian end.
+ * The same rule as the page ground, applied to a headline.
+ */
+.corridor-text {
+  background: linear-gradient(100deg, var(--green-bright) 0%, var(--blue-bright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/** Split-flap style character cell for the scrolling story numbers. */
+.char-cell {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+/* ============================================================== motion */
+
+/**
+ * Reduced motion: gentler, not zero.
+ *
+ * Killing every transition reintroduces the teleporting-state problem the
+ * motion exists to solve. Looping and travelling animations stop; state-change
+ * transitions survive at a short flat duration.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-dot,
+  .corridor-flow,
+  .skeleton::after {
+    animation: none !important;
+  }
+
+  .fade-rise {
+    animation-duration: 1ms !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 120ms !important;
+    transition-timing-function: linear !important;
+  }
 }

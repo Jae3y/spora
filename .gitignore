@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Rust / Soroban
+/target
+**/*.rs.bk
+
+# Local env (contains testnet secrets written by scripts/deploy.sh)
+.env.local
+.env*.local
