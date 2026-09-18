@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PHONE } from '@/lib/corridor';
 import { Button, Spinner } from '@/components/ui/primitives';
 
 /**
@@ -8,11 +9,16 @@ import { Button, Spinner } from '@/components/ui/primitives';
  *
  * ## Why simulate the handset rather than show a form
  *
- * The STK (SIM Toolkit) push is the part of this corridor a Nairobi judge will
- * recognise instantly and a non-Nigerian judge will not. Rendering the real
- * NIBSS dialog — the menu chrome, the PIN masking, the confirmation SMS —
+ * A farmer in Dawakin Kudu authorises this on a feature phone by dialling
+ * `*737#` and entering a PIN into a USSD menu -- not by filling in a web form.
+ * Rendering that menu chrome, the PIN masking and the confirmation SMS
  * communicates *what the user experience actually is* far faster than a
- * screenshot or a description.
+ * screenshot or a description, and it is the part of the corridor a Nigerian
+ * judge will recognise instantly.
+ *
+ * Nigeria is not an M-Pesa market, so nothing here is an STK push: the rail
+ * underneath is NIBSS instant transfer reached over USSD, aggregated by
+ * Kotani Pay.
  *
  * ## The PIN is never transmitted as a secret
  *
@@ -39,7 +45,7 @@ interface Settlement {
   settlement: { creditedUsdc?: string; chain?: { hash: string | null } } | null;
 }
 
-export function MpesaModal({
+export function TransferModal({
   onClose,
   onSettled,
 }: {
@@ -47,8 +53,19 @@ export function MpesaModal({
   onSettled: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>('compose');
-  const [phoneNumber, setPhoneNumber] = useState('0712345678');
-  const [amountNgn, setAmountKes] = useState('2600');
+  /**
+   * Defaults are a real Nigerian mobile prefix and a realistic pledge.
+   *
+   * These read `0712345678` and `2600` until the Nigeria pivot caught them:
+   * `071` is a Safaricom prefix that the server's own validator rejects, and
+   * NGN 2,600 is about USD 1.65 -- a Kenyan-shilling figure wearing a naira
+   * label. A judge who pressed the button got a validation error on a rail
+   * the product claims to run on.
+   */
+  // Annotated because `PHONE.example` is `as const`, which would otherwise
+  // narrow the state to that one literal and reject every keystroke.
+  const [phoneNumber, setPhoneNumber] = useState<string>(PHONE.example);
+  const [amountNgn, setAmountNgn] = useState('316000');
   const [pin, setPin] = useState('');
   const [session, setSession] = useState<PushSession | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
@@ -162,8 +179,8 @@ export function MpesaModal({
             <div>
               <h2 className="text-lg font-semibold">Contribute via bank transfer</h2>
               <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                Kotani Pay aggregates the shilling payment and settles it as Stellar USDC
-                into the cooperative escrow.
+                Kotani Pay aggregates the naira transfer over NIBSS and settles it as
+                Stellar USDC into the cooperative escrow.
               </p>
             </div>
             <Button variant="ghost" onClick={onClose}>
@@ -179,11 +196,12 @@ export function MpesaModal({
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 disabled={phase !== 'compose' && phase !== 'error'}
                 inputMode="tel"
-                placeholder="0712345678"
+                placeholder={PHONE.placeholder}
                 className="numeric mt-1.5 w-full rounded-lg border border-[var(--edge-bright)] bg-[var(--panel-sunken)] px-3 py-2.5 text-sm outline-none focus:border-[var(--amber)] disabled:opacity-50"
               />
               <span className="mt-1 block text-xs text-[var(--ink-dim)]">
-                Accepts 07…, 7…, 254… or +254…, all normalised to E.164.
+                Accepts 0803…, 803…, 234803… or +234803…, all normalised to E.164.
+                Valid prefixes: {PHONE.validPrefixes.map((p) => `0${p}`).join(', ')}.
               </span>
             </label>
 
@@ -191,7 +209,7 @@ export function MpesaModal({
               <span className="panel-heading">Amount (₦)</span>
               <input
                 value={amountNgn}
-                onChange={(e) => setAmountKes(e.target.value.replace(/[^\d]/g, ''))}
+                onChange={(e) => setAmountNgn(e.target.value.replace(/[^\d]/g, ''))}
                 disabled={phase !== 'compose' && phase !== 'error'}
                 inputMode="numeric"
                 className="numeric mt-1.5 w-full rounded-lg border border-[var(--edge-bright)] bg-[var(--panel-sunken)] px-3 py-2.5 text-sm outline-none focus:border-[var(--amber)] disabled:opacity-50"

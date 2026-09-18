@@ -1,17 +1,18 @@
 'use client';
 
+import { DESTINATION, ORIGIN } from '@/lib/corridor';
 import { Panel } from '@/components/ui/primitives';
 
 /**
  * Cross-continental corridor visualisation.
  *
- * The geometry is an equirectangular projection of the two real endpoints --
- * Caranavi (-15.84, -67.57) and Kano (-0.42, 36.95) -- rather than hand-placed
- * dots, so the arc genuinely traces the South-America-to-East-Africa route the
- * shipment takes across the Atlantic.
+ * The geometry is an equirectangular projection of the two real endpoints,
+ * read from the corridor module rather than hand-placed, so the arc genuinely
+ * traces the South-America-to-West-Africa route the shipment takes across the
+ * Atlantic.
  *
  * Flow direction is deliberately *westward* for capital and *eastward* for
- * goods: shillings pooled in Kano travel to Caranavi to buy biological inputs,
+ * goods: naira pooled in Kano travel to Caranavi to buy biological inputs,
  * and those inputs ship back. Drawing a single bidirectional path would hide
  * the fact that the two legs settle on different rails and different days.
  */
@@ -36,7 +37,7 @@ const WORLD_HEIGHT = 340;
  * the arc is still a true equirectangular path between the real coordinates —
  * while giving the corridor the whole frame.
  */
-const CROP = { x: 190, y: 62, width: 470, height: 196 } as const;
+const CROP = { x: 232, y: 50, width: 330, height: 176 } as const;
 
 /**
  * Cross-fade for the amber→crimson escalation on a parametric breach.
@@ -68,14 +69,14 @@ export function CorridorMap({
   status: string;
   breached: boolean;
 }) {
-  const caranavi = project(-15.8402, -67.5703);
-  const nyeri = project(-0.4197, 36.9511);
+  const caranavi = project(DESTINATION.latitude, DESTINATION.longitude);
+  const kano = project(ORIGIN.latitude, ORIGIN.longitude);
 
   // Lift the control point above the chord so the arc reads as a great-circle
   // route rather than a straight line through the ocean.
-  const controlX = (caranavi.x + nyeri.x) / 2;
-  const controlY = Math.min(caranavi.y, nyeri.y) - 78;
-  const path = `M ${caranavi.x} ${caranavi.y} Q ${controlX} ${controlY} ${nyeri.x} ${nyeri.y}`;
+  const controlX = (caranavi.x + kano.x) / 2;
+  const controlY = Math.min(caranavi.y, kano.y) - 62;
+  const path = `M ${caranavi.x} ${caranavi.y} Q ${controlX} ${controlY} ${kano.x} ${kano.y}`;
 
   const flowColor = breached ? 'var(--drought)' : 'var(--amber)';
   const activeIndex = Math.max(
@@ -170,8 +171,8 @@ export function CorridorMap({
             color={flowColor}
           />
           <Endpoint
-            x={nyeri.x}
-            y={nyeri.y}
+            x={kano.x}
+            y={kano.y}
             label="KANO"
             sub="Nigeria · cooperative"
             color="var(--green)"

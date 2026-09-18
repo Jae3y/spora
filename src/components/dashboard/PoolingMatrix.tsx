@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ActionButton, Meter, Panel, Stat } from '@/components/ui/primitives';
-import { MpesaModal } from './MpesaModal';
+import { TransferModal } from './TransferModal';
 
 /**
  * Cooperative pooling matrix — the African side of the corridor.
@@ -162,7 +162,7 @@ export function PoolingMatrix({
           the component needs no reset effect and cannot retain a previous
           contributor's phone number or PIN. */}
       {modalOpen && (
-        <MpesaModal onClose={() => setModalOpen(false)} onSettled={onRefresh} />
+        <TransferModal onClose={() => setModalOpen(false)} onSettled={onRefresh} />
       )}
     </>
   );

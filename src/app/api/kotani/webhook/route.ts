@@ -1,10 +1,6 @@
 import { fail, ok } from '@/lib/api';
 import { kotaniMode } from '@/lib/config';
-import {
-  validateWebhookPayload,
-  verifyKotaniSignature,
-  type KotaniWebhookPayload,
-} from '@/lib/kotani';
+import { providerForCallback, type CanonicalSettlement } from '@/lib/ingress';
 import { ngnToStroops, formatUsdc } from '@/lib/money';
 import { chainMode } from '@/lib/config';
 import { depositFunds } from '@/lib/soroban/escrow';
@@ -18,7 +14,21 @@ import {
 } from '@/lib/store/ledger';
 
 /**
- * Kotani Pay settlement callback.
+ * Naira ingress settlement callback.
+ *
+ * ## One endpoint, several providers
+ *
+ * The route is mounted under `/api/kotani/` for backward compatibility, but it
+ * is no longer Kotani-specific. The sending provider is identified from the
+ * header shape *before* verification, because each one signs differently:
+ * Paystack uses HMAC-SHA512 keyed with its secret key, Kotani HMAC-SHA256 with
+ * a dedicated webhook secret, Flutterwave a static echoed hash. Verifying with
+ * the wrong scheme fails every time and looks exactly like an attack in the
+ * logs.
+ *
+ * Identification is not authentication: choosing a verifier from a header
+ * grants nothing, since that verifier still has to pass. An attacker can pick
+ * which lock to be tested against, not whether to be tested.
  *
  * ## Order of operations is load-bearing
  *
@@ -49,19 +59,19 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request): Promise<Response> {
   // 1. Raw bytes, before anything touches them.
   const rawBody = await request.text();
-  const signature =
-    request.headers.get('X-Kotani-Signature') ?? request.headers.get('x-kotani-signature');
+  const provider = providerForCallback(request.headers);
 
-  // 2. Authenticity. In mock mode the signature is still verified -- the mock
-  //    engine signs with the same secret, so this path is never bypassed.
-  if (!verifyKotaniSignature(rawBody, signature)) {
+  // 2. Authenticity, using that provider's own scheme. In mock mode the
+  //    signature is still verified -- the mock engine signs with the same
+  //    secret, so this path is never bypassed.
+  if (!provider.verifyCallback(rawBody, request.headers)) {
     appendAuditEvent({
       category: 'ingress',
       event: 'webhook_rejected',
-      summary: 'Rejected a Kotani callback with an invalid or missing HMAC signature.',
+      summary: `Rejected a ${provider.displayName} callback with an invalid or missing signature.`,
       txHash: null,
       mode: kotaniMode,
-      detail: { reason: 'signature_mismatch', hasHeader: Boolean(signature) },
+      detail: { reason: 'signature_mismatch', provider: provider.id },
     });
     return fail('INVALID_SIGNATURE', 'Webhook signature verification failed', 401);
   }
@@ -74,19 +84,22 @@ export async function POST(request: Request): Promise<Response> {
     return fail('MALFORMED_JSON', 'Webhook body is not valid JSON', 400);
   }
 
-  const verdict = validateWebhookPayload(parsed);
+  const verdict = provider.parseCallback(parsed);
   if (!verdict.ok) {
+    // A correctly signed but malformed body means the provider changed their
+    // contract. That is a different incident from a forged callback, and the
+    // audit trail has to be able to tell them apart.
     appendAuditEvent({
       category: 'ingress',
       event: 'webhook_rejected',
-      summary: `Rejected a signed Kotani callback: ${verdict.reason}`,
+      summary: `Rejected a signed ${provider.displayName} callback: ${verdict.reason}`,
       txHash: null,
       mode: kotaniMode,
-      detail: { reason: verdict.reason },
+      detail: { reason: verdict.reason, provider: provider.id, signatureValid: true },
     });
     return fail('INVALID_PAYLOAD', verdict.reason, verdict.status);
   }
-  const payload: KotaniWebhookPayload = verdict.payload;
+  const payload: CanonicalSettlement = verdict.settlement;
 
   // 4. Idempotency. A genuine replay carries a genuine signature, so this is
   //    the only thing standing between a retry and a double credit.
@@ -105,7 +118,7 @@ export async function POST(request: Request): Promise<Response> {
     markMemberFailed(payload.phoneNumber);
     appendAuditEvent({
       category: 'ingress',
-      event: 'mpesa_not_settled',
+      event: 'ingress_not_settled',
       summary: `Naira contribution ${payload.reference} reported ${payload.status}.`,
       txHash: null,
       mode: kotaniMode,
@@ -115,30 +128,28 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // 5. Credit.
-  const stroops = payload.settledUsdc
-    ? ngnToStroops(payload.amount)
-    : ngnToStroops(payload.amount);
+  const stroops = ngnToStroops(payload.amountNgn);
 
   const escrow = creditDeposit(stroops);
   recordMemberSettlement({
     phoneNumber: payload.phoneNumber,
-    amountNgn: payload.amount,
+    amountNgn: payload.amountNgn,
     stroops: stroops.toString(),
-    transferRef: payload.transferRef ?? null,
+    transferRef: payload.transferRef,
   });
 
   appendAuditEvent({
     category: 'ingress',
-    event: 'mpesa_settled',
+    event: 'ingress_settled',
     summary:
-      `₦ ${payload.amount.toLocaleString('en-US')} from ${maskPhone(payload.phoneNumber)} settled as ` +
+      `₦ ${payload.amountNgn.toLocaleString('en-US')} from ${maskPhone(payload.phoneNumber)} settled as ` +
       `${formatUsdc(stroops)} USDC (receipt ${payload.transferRef ?? 'n/a'}).`,
     txHash: null,
     mode: kotaniMode,
     detail: {
       reference: payload.reference,
       transactionId: payload.transactionId,
-      amountNgn: payload.amount,
+      amountNgn: payload.amountNgn,
       stroops: stroops.toString(),
       transferRef: payload.transferRef,
     },

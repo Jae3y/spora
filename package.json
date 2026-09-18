@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "deploy": "bash scripts/deploy.sh",
-    "contract:build": "cargo build --target wasm32-unknown-unknown --release --manifest-path contracts/spora_escrow/Cargo.toml",
+    "deploy": "npm run contract:build && npm run contract:opt && npm run contract:deploy",
+    "contract:build": "cargo +stable-x86_64-pc-windows-gnu build --target wasm32-unknown-unknown --release --manifest-path contracts/spora_escrow/Cargo.toml",
     "contract:test": "cargo test --manifest-path contracts/spora_escrow/Cargo.toml",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "contract:opt": "wasm-opt target/wasm32-unknown-unknown/release/spora_escrow.wasm -o target/wasm32-unknown-unknown/release/spora_escrow.optimized.wasm -Oz --mvp-features --enable-sign-ext --enable-mutable-globals",
+    "contract:deploy": "tsx scripts/deploy.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -38,6 +40,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
+    "binaryen": "^123.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",

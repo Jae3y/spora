@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Instrument_Sans, Geist_Mono } from 'next/font/google';
+import { SiteFooter } from '@/components/nav/SiteFooter';
+import { SiteNav } from '@/components/nav/SiteNav';
 import './globals.css';
 
 /**
@@ -34,7 +36,15 @@ const monoNumerals = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Spora · Parametric Climate Escrow',
+  /**
+   * `template` gives every route its own tab title without each page
+   * restating the product name. A judge with seven tabs open needs to tell
+   * them apart from the tab strip alone.
+   */
+  title: {
+    default: 'Spora · Parametric Climate Escrow',
+    template: '%s · Spora',
+  },
   description:
     'Cross-continental parametric climate escrow connecting smallholder farmers cooperatives ' +
     'in Kano, Nigeria with biological input exporters in Caranavi, Bolivia. Stellar Soroban, ' +
@@ -57,7 +67,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${displaySans.variable} ${monoNumerals.variable} antialiased`}>
+        <SiteNav />
         {children}
+        <SiteFooter />
       </body>
     </html>
   );

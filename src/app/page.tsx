@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { ArrowUpRight } from '@phosphor-icons/react';
 import { AuditDrawer, type AuditEvent } from '@/components/dashboard/AuditDrawer';
 import { CockpitSkeleton } from '@/components/dashboard/CockpitSkeleton';
@@ -16,6 +17,7 @@ import { WeatherCockpit, type PolicyShape } from '@/components/dashboard/Weather
 import { StoryLayer } from '@/components/hero/StoryLayer';
 import { Button, Panel, Spinner, Stat, StatusBadge } from '@/components/ui/primitives';
 import { useReveal } from '@/components/ui/useReveal';
+import { ROUTES } from '@/components/nav/routes';
 
 /**
  * Spora.
@@ -225,7 +227,9 @@ export default function Spora() {
   return (
     <>
       {/* ═══════════════════════════ the story ═══════════════════════════ */}
-      <StoryLayer breached={breached} />
+      <div id="content">
+        <StoryLayer breached={breached} />
+      </div>
 
       {/* ═══════════════════════════ the cockpit ═════════════════════════ */}
       <main
@@ -421,6 +425,45 @@ export default function Spora() {
         </div>
 
         <AuditDrawer events={events} explorerBase={explorerBase} />
+
+        {/* ---- the rest of the corridor ---- */}
+        <section className="mt-16">
+          <div className="mb-6 flex items-center gap-4">
+            <span className="panel-heading whitespace-nowrap">Go deeper</span>
+            <span
+              className="h-px flex-1"
+              style={{
+                background:
+                  'linear-gradient(90deg, var(--blue) 0%, var(--green) 50%, transparent 100%)',
+              }}
+              aria-hidden
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ROUTES.filter((route) => route.href !== '/').map((route) => (
+              <Link
+                key={route.href}
+                href={route.href}
+                className="group panel transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] active:scale-[0.99]"
+              >
+                <div className="panel-core flex h-full flex-col justify-between gap-6 p-5">
+                  <div>
+                    <p className="text-[0.9375rem] font-semibold tracking-tight text-[var(--ink)]">
+                      {route.label}
+                    </p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                      {route.blurb}
+                    </p>
+                  </div>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--blue)_14%,transparent)] text-[var(--blue-bright)] transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-px">
+                    <ArrowUpRight size={13} weight="bold" aria-hidden />
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       </main>
 
       {/* ══════════════════════ the settlement moment ═══════════════════ */}

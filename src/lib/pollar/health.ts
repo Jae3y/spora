@@ -34,10 +34,37 @@ const TTL_MS = 60_000;
 let cached: { at: number; value: RailHealth } | null = null;
 let inFlight: Promise<RailHealth> | null = null;
 
+/**
+ * Pollar's authentication scheme, read off the SDK rather than guessed.
+ *
+ * `@pollar/core` sets `x-pollar-api-key` on every outbound request -- it does
+ * not use `Authorization: Bearer`. A Bearer probe answers
+ * `401 API_KEY_NOT_FOUND` no matter how valid the key is, which would have
+ * shown this rail as permanently dead while the key was perfectly good.
+ *
+ * The two key types are not interchangeable. Public reads such as
+ * `/ramps/countries` want the **publishable** key and answer
+ * `403 API_KEY_TYPE_NOT_ALLOWED` to a secret one; the secret key is for the
+ * privileged server surface. The probe therefore tries the publishable key
+ * first and falls back, so a half-configured app still reports something
+ * actionable instead of a flat "not live".
+ */
+function pollarHeaders(key: string): HeadersInit {
+  return {
+    accept: 'application/json',
+    'x-pollar-api-key': key,
+    // Pollar allow-lists origins per application and treats a missing Origin
+    // as disallowed, so a server-side call must present one explicitly.
+    Origin: pollarConfig.appOrigin,
+  };
+}
+
 async function probe(): Promise<RailHealth> {
   const now = new Date().toISOString();
 
-  if (!pollarConfig.apiKey) {
+  const key = pollarConfig.publishableKey ?? pollarConfig.apiKey;
+
+  if (!key) {
     return {
       reachable: false,
       authenticated: false,
@@ -51,10 +78,7 @@ async function probe(): Promise<RailHealth> {
     // `/ramps/countries` is the cheapest authenticated read the SDK exposes:
     // no body, no side effects, and it fails closed on a bad key.
     const response = await fetch(`${pollarConfig.baseUrl}/v2/ramps/countries`, {
-      headers: {
-        accept: 'application/json',
-        Authorization: `Bearer ${pollarConfig.apiKey}`,
-      },
+      headers: pollarHeaders(key),
       signal: AbortSignal.timeout(8_000),
       cache: 'no-store',
     });
@@ -84,11 +108,7 @@ async function probe(): Promise<RailHealth> {
       reachable: true,
       authenticated: false,
       status: response.status,
-      detail:
-        response.status === 401
-          ? `Key rejected with HTTP 401${code}. The SDK expects a publishable/secret ` +
-            `key from dashboard.pollar.xyz, not a dashboard personal access token.`
-          : `Pollar answered HTTP ${response.status}${code}.`,
+      detail: explain(response.status, code),
       checkedAt: now,
     };
   } catch (cause) {
@@ -120,4 +140,36 @@ export async function pollarHealth(): Promise<RailHealth> {
     });
 
   return inFlight;
+}
+
+/**
+ * Turn Pollar's error code into the fix, not just the symptom.
+ *
+ * Each of these fails the same way from the dashboard's point of view -- no
+ * green badge -- but they need completely different actions, and a judge
+ * reading "not live" learns nothing. Naming the remedy is the difference
+ * between a broken demo and a demo that is honest about its configuration.
+ */
+function explain(status: number, code: string): string {
+  if (code.includes('ORIGIN_NOT_ALLOWED')) {
+    return (
+      `Key accepted, origin refused${code}. Add ${pollarConfig.appOrigin} to the ` +
+      `application's allowed origins at dashboard.pollar.xyz and set ` +
+      `POLLAR_APP_ORIGIN to the deployed URL in production.`
+    );
+  }
+  if (code.includes('API_KEY_TYPE_NOT_ALLOWED')) {
+    return (
+      `Wrong key type for this endpoint${code}. Public reads need the ` +
+      `pub_… publishable key; sec_… is for the privileged server surface.`
+    );
+  }
+  if (code.includes('API_KEY_NOT_FOUND') || status === 401) {
+    return (
+      `Key rejected with HTTP ${status}${code}. Pollar authenticates with the ` +
+      `x-pollar-api-key header and a pub_/sec_ application key -- a pat_… ` +
+      `personal access token is not accepted here.`
+    );
+  }
+  return `Pollar answered HTTP ${status}${code}.`;
 }

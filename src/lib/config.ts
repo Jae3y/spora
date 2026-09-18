@@ -95,7 +95,18 @@ export const pollarConfig = {
    */
   apiKey: env('POLLAR_SECRET_KEY') ?? env('POLLAR_API_KEY'),
   /** Publishable key, safe to expose. */
-  publishableKey: env('NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY'),
+  publishableKey:
+    env('NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY') ?? env('POLLAR_PUBLISHABLE_KEY'),
+  /**
+   * Origin presented to Pollar on server-side calls.
+   *
+   * Pollar enforces an allow-list per application and rejects a request with
+   * no `Origin` at all -- a bare server fetch answers `ORIGIN_NOT_ALLOWED`
+   * even with a valid key. The value here must match an origin registered on
+   * the app in the Pollar dashboard character for character, including scheme
+   * and port.
+   */
+  appOrigin: env('POLLAR_APP_ORIGIN') ?? 'http://localhost:3000',
   /**
    * SDK API host.
    *
@@ -116,6 +127,54 @@ export const kotaniConfig = {
   webhookSecret: env('KOTANI_WEBHOOK_SECRET'),
   integratorId: env('KOTANI_INTEGRATOR_ID'),
 } as const;
+
+/**
+ * Paystack. Self-serve: `sk_test_…` arrives on an email signup with no
+ * business registration, which is why it is the first fallback when a
+ * document-gated provider refuses us.
+ *
+ * There is deliberately no separate webhook secret -- Paystack signs callbacks
+ * with the secret key itself.
+ */
+export const paystackConfig = {
+  secretKey: env('PAYSTACK_SECRET_KEY'),
+  publicKey: env('NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY') ?? env('PAYSTACK_PUBLIC_KEY'),
+} as const;
+
+/**
+ * Flutterwave. Also self-serve.
+ *
+ * `webhookHash` is a static shared secret echoed in a `verif-hash` header, not
+ * a signature over the body -- see the provider module for why that matters
+ * and what compensates for it.
+ */
+export const flutterwaveConfig = {
+  secretKey: env('FLUTTERWAVE_SECRET_KEY'),
+  publicKey: env('NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY') ?? env('FLUTTERWAVE_PUBLIC_KEY'),
+  webhookHash: env('FLUTTERWAVE_WEBHOOK_HASH'),
+} as const;
+
+/**
+ * Which ingress provider the corridor collects naira through.
+ *
+ * Explicit when `INGRESS_PROVIDER` is set; otherwise the first provider with
+ * usable credentials wins, in descending order of how much of the rail is
+ * genuinely exercised. Kotani is last not because it is worst -- it is the
+ * only one that does NGN collection *and* stablecoin settlement in one hop --
+ * but because it is the one we could not obtain credentials for, so falling
+ * back to it means falling back to the mock.
+ */
+export type IngressProviderId = 'kotani' | 'paystack' | 'flutterwave';
+
+export const ingressProviderId: IngressProviderId = (() => {
+  const explicit = env('INGRESS_PROVIDER')?.toLowerCase();
+  if (explicit === 'kotani' || explicit === 'paystack' || explicit === 'flutterwave') {
+    return explicit;
+  }
+  if (paystackConfig.secretKey) return 'paystack';
+  if (flutterwaveConfig.secretKey) return 'flutterwave';
+  return 'kotani';
+})();
 
 export const appConfig = {
   host: env('NEXT_PUBLIC_HOST') ?? 'http://localhost:3000',

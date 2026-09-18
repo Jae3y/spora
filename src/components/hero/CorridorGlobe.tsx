@@ -2,6 +2,7 @@
 
 import { useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import { DESTINATION, ORIGIN } from '@/lib/corridor';
 import * as THREE from 'three';
 
 /**
@@ -33,8 +34,17 @@ import * as THREE from 'three';
  * page around it.
  */
 
-const KANO = { lat: -0.4197, lon: 36.9511 };
-const CARANAVI = { lat: -15.8402, lon: -67.5703 };
+/**
+ * Endpoints come from the corridor module rather than being restated here.
+ *
+ * They were restated here, and the Nigeria pivot renamed the constant to
+ * `KANO` while leaving Nyeri's coordinates (-0.42, 36.95) inside it -- so the
+ * hero drew an arc leaving East Africa under a label that said Nigeria. The
+ * import is the fix: there is now exactly one place a coordinate can be
+ * wrong, and it is the same place every other module reads.
+ */
+const KANO = { lat: ORIGIN.latitude, lon: ORIGIN.longitude };
+const CARANAVI = { lat: DESTINATION.latitude, lon: DESTINATION.longitude };
 const RADIUS = 2;
 
 /** Geographic coordinates to a point on the sphere. */
