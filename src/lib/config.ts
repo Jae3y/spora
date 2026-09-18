@@ -81,6 +81,14 @@ export const stellarConfig = {
   usdcContractId:
     env('USDC_CONTRACT_ID') ?? 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA',
   usdcIssuer: env('USDC_ISSUER') ?? 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  /**
+   * Hash of the first deposit that genuinely executed on chain.
+   *
+   * Surfaced in the interface as evidence rather than left in a commit
+   * message. A claim that money moved is worth exactly as much as the link
+   * that lets a reader check it.
+   */
+  proofTxHash: env('NEXT_PUBLIC_PROOF_TX'),
   adminSecret: env('STELLAR_ADMIN_SECRET'),
   oracleSecret: env('ORACLE_SECRET_KEY'),
   gasWalletSecret: env('POLLAR_GAS_WALLET_SECRET'),

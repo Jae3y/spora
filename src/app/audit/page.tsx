@@ -95,6 +95,67 @@ export default function AuditPage() {
         </div>
       }
     >
+      {/* ---- on-chain evidence ---- */}
+      {state.identities.proofTxHash && (
+        <Panel
+          className="mb-6"
+          title="Verified on chain"
+          subtitle="Not a screenshot. Open the hash and read the transfer, the invocation and the state change for yourself."
+          action={
+            <span className="badge badge-land">
+              <span className="pulse-dot" aria-hidden />
+              ON CHAIN
+            </span>
+          }
+        >
+          <div className="grid gap-5 md:grid-cols-[1.2fr_1fr]">
+            <div>
+              <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
+                <span className="numeric text-[var(--ink)]">20.00 USDC</span> of real
+                Stellar testnet USDC moved from the cooperative&apos;s account into the
+                escrow contract. <code className="numeric text-[var(--ink-dim)]">deposit_funds</code>{' '}
+                performs an actual <code className="numeric text-[var(--ink-dim)]">token::transfer</code> —
+                the escrow went from <span className="numeric">Initialized</span> to{' '}
+                <span className="numeric">Funded</span> and the contract executed the 90/10
+                split itself, to <span className="numeric">18.00</span> and{' '}
+                <span className="numeric">2.00</span>.
+              </p>
+              <p className="mt-3 text-xs leading-relaxed text-[var(--ink-dim)]">
+                The invariant was then re-checked against chain state rather than against
+                our own arithmetic: input allocation plus climate buffer re-sum to the
+                deposit exactly, with no stranded stroop.
+              </p>
+            </div>
+
+            <dl className="space-y-2.5 text-xs">
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-[var(--ink-dim)]">Transaction</dt>
+                <dd className="min-w-0">
+                  <a
+                    href={`${explorerBase}${state.identities.proofTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="numeric break-all text-[var(--blue-bright)] underline decoration-dotted underline-offset-2"
+                  >
+                    {state.identities.proofTxHash}
+                  </a>
+                </dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-[var(--ink-dim)]">Contract</dt>
+                <dd className="numeric min-w-0 break-all text-[var(--ink-muted)]">
+                  {state.identities.contractId}
+                </dd>
+              </div>
+              <div className="flex gap-3">
+                <dt className="w-20 shrink-0 text-[var(--ink-dim)]">Network</dt>
+                <dd className="text-[var(--ink-muted)]">Stellar {state.identities.network}</dd>
+              </div>
+            </dl>
+          </div>
+        </Panel>
+      )}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Summary figure={String(events.length)} label="Total events" />
         <Summary

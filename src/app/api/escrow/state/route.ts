@@ -153,6 +153,7 @@ export async function GET(): Promise<Response> {
           gasWallet: gasSponsorshipStatus(),
           supplierDeferred: supplier,
           contractId: stellarConfig.contractId ?? null,
+          proofTxHash: stellarConfig.proofTxHash ?? null,
           contractExplorerUrl: contractExplorerUrl(),
           network: stellarConfig.network,
         },

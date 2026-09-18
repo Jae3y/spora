@@ -49,6 +49,24 @@ rail marked `live` answered an authenticated request within the last minute.
 | Gas-wallet fee-bump sponsorship | **live** | Envelopes signed as real `FeeBumpTransactionEnvelope`s. |
 | Open-Meteo climate oracle | **live** | ECMWF IFS, NOAA GFS and DWD ICON, read per request. |
 
+### Proof, not assertion
+
+One deposit has genuinely executed on chain. `deposit_funds` performs a real
+`token::transfer`, so this moved actual Stellar testnet USDC:
+
+| | |
+|---|---|
+| Transaction | [`1d7efadc…1b11`](https://stellar.expert/explorer/testnet/tx/1d7efadc52e747121c6bbfd7ea0b1a3ba510f3d17e944e1cbd941e1a8b6b1b11) |
+| Amount | 20.00 USDC, cooperative → escrow contract |
+| Effect | status `Initialized` → `Funded`; contract split 18.00 inputs / 2.00 buffer |
+| Verified | invariant re-checked against **chain state**, not our own arithmetic |
+
+Reproduce it yourself against a funded account:
+
+```bash
+npm run prove          # reads before, deposits, reads after, checks the invariant
+```
+
 **What is still simulated, stated plainly:** the escrow's full USD 2,000 demo
 balance runs against the process-local mirror, because Circle's testnet faucet
 dispenses 20 USDC every two hours and `deposit_funds` performs a real

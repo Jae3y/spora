@@ -66,6 +66,7 @@ export interface CorridorState {
       derivationPath: string;
     };
     contractId: string | null;
+    proofTxHash: string | null;
     contractExplorerUrl: string | null;
     network: string;
   };
