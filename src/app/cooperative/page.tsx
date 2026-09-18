@@ -88,7 +88,7 @@ export default function CooperativePage() {
           subtitle="Pledges scale with land under cultivation, which is also what scales exposure to a failed season."
         >
           <div className="thin-scroll -mx-1 overflow-x-auto px-1">
-            <table className="w-full min-w-[34rem] border-collapse text-sm">
+            <table className="w-full min-w-[30rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--edge)] text-left">
                   <Th>Member</Th>

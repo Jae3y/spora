@@ -213,25 +213,31 @@ export function SiteNav() {
  * The mark: a seed splitting into two paths.
  *
  * Green stroke for the land leg, blue for the water leg -- the same semantic
- * the whole interface runs on, stated once at the smallest possible size.
+ * the whole interface runs on, stated once at the smallest possible size. The
+ * orbit is broken rather than closed: a complete ring reads as a generic
+ * badge, and the gap is where the corridor is still in flight.
+ *
+ * Geometry is shared with `public/spora-mark.svg`, which is the source for the
+ * favicon and every exported PNG, so the nav and the browser tab can never
+ * drift into being two different logos.
  */
 function SporaMark() {
   return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
-      <circle cx="11" cy="11" r="9.25" stroke="var(--edge-bright)" strokeWidth="1.25" />
-      <path
-        d="M11 17.5c0-4 -1.6-6.2 -4.2-7.6"
-        stroke="var(--green)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
+    <svg width="22" height="22" viewBox="0 0 512 512" fill="none" aria-hidden>
+      <circle
+        cx="256" cy="256" r="196"
+        fill="none" stroke="var(--edge-bright)" strokeWidth="14"
+        strokeLinecap="round" strokeDasharray="64 44" opacity="0.6"
       />
       <path
-        d="M11 17.5c0-4 1.6-6.2 4.2-7.6"
-        stroke="var(--blue)"
-        strokeWidth="1.6"
-        strokeLinecap="round"
+        d="M256 398 C256 306 288 268 352 236"
+        fill="none" stroke="var(--blue)" strokeWidth="42" strokeLinecap="round"
       />
-      <circle cx="11" cy="6.4" r="1.9" fill="var(--green-bright)" />
+      <path
+        d="M256 398 C256 306 224 268 160 236"
+        fill="none" stroke="var(--green)" strokeWidth="42" strokeLinecap="round"
+      />
+      <circle cx="256" cy="142" r="52" fill="var(--green-bright)" />
     </svg>
   );
 }

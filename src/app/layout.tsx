@@ -45,6 +45,31 @@ export const metadata: Metadata = {
     default: 'Spora · Parametric Climate Escrow',
     template: '%s · Spora',
   },
+  /**
+   * `metadataBase` resolves the relative OG image below against the deployment
+   * rather than against a guess. Without it Next warns and emits a relative
+   * URL, which most social scrapers refuse to follow.
+   */
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_HOST ??
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : 'http://localhost:3000'),
+  ),
+  openGraph: {
+    title: 'Spora · Parametric Climate Escrow',
+    description:
+      'When the rain fails, the money moves. No claim, no adjuster, no waiting.',
+    images: ['/spora-logo.png'],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Spora · Parametric Climate Escrow',
+    description:
+      'When the rain fails, the money moves. No claim, no adjuster, no waiting.',
+    images: ['/spora-logo.png'],
+  },
   description:
     'Cross-continental parametric climate escrow connecting smallholder farmers cooperatives ' +
     'in Kano, Nigeria with biological input exporters in Caranavi, Bolivia. Stellar Soroban, ' +

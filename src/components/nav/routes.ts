@@ -30,6 +30,7 @@ export const ROUTES: readonly NavRoute[] = [
   { href: '/corridor', label: 'Corridor', blurb: 'Kano to Caranavi, stage by stage' },
   { href: '/cooperative', label: 'Cooperative', blurb: 'Eight farmers in Dawakin Kudu' },
   { href: '/oracle', label: 'Oracle', blurb: 'Three satellites, one verdict' },
+  { href: '/wallet', label: 'Wallet', blurb: 'Pollar embedded wallet, live session' },
   { href: '/supplier', label: 'Supplier', blurb: 'Bolivian payout and QR egress' },
   { href: '/audit', label: 'Audit', blurb: 'Every event, every signature' },
   { href: '/how-it-works', label: 'How it works', blurb: 'The contract and the economics' },

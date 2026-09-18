@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Spora">
+  <title>Spora</title>
+  <desc>A seed splitting into two paths: green for the land leg, blue for the water leg.</desc>
+
+  <defs>
+    <!--
+      The ground is the same near-black the interface uses, not pure black.
+      Pure black on a light gallery card reads as a hole; a blue-shifted dark
+      reads as a material.
+    -->
+    <radialGradient id="ground" cx="50%" cy="34%" r="78%">
+      <stop offset="0%" stop-color="#0b2a3e"/>
+      <stop offset="62%" stop-color="#05141c"/>
+      <stop offset="100%" stop-color="#030d14"/>
+    </radialGradient>
+
+    <!-- Land leg: green, brightening toward the seed. -->
+    <linearGradient id="land" x1="0.5" y1="1" x2="0.15" y2="0">
+      <stop offset="0%" stop-color="#0c7d4a"/>
+      <stop offset="55%" stop-color="#21c77a"/>
+      <stop offset="100%" stop-color="#3ce392"/>
+    </linearGradient>
+
+    <!-- Water leg: blue, mirrored. -->
+    <linearGradient id="water" x1="0.5" y1="1" x2="0.85" y2="0">
+      <stop offset="0%" stop-color="#0b5fa8"/>
+      <stop offset="55%" stop-color="#2b9ff5"/>
+      <stop offset="100%" stop-color="#5cbcff"/>
+    </linearGradient>
+
+    <radialGradient id="seedGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3ce392" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#3ce392" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Hairline lip, so the disc reads as machined rather than pasted on. -->
+    <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8ccdf5" stop-opacity="0.34"/>
+      <stop offset="50%" stop-color="#8ccdf5" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.32"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="256" fill="url(#ground)"/>
+  <circle cx="256" cy="256" r="254" fill="none" stroke="url(#lip)" stroke-width="4"/>
+
+  <!--
+    The orbit is broken, not closed. A complete ring would read as a generic
+    badge; the gap is where the corridor is still in flight.
+  -->
+  <circle
+    cx="256" cy="256" r="196"
+    fill="none" stroke="#1c5878" stroke-width="7"
+    stroke-linecap="round" stroke-dasharray="64 44" opacity="0.55"
+  />
+
+  <!-- Water leg drawn first so the land leg overlaps it at the join. -->
+  <path
+    d="M256 398 C256 306 288 268 352 236"
+    fill="none" stroke="url(#water)" stroke-width="34" stroke-linecap="round"
+  />
+  <path
+    d="M256 398 C256 306 224 268 160 236"
+    fill="none" stroke="url(#land)" stroke-width="34" stroke-linecap="round"
+  />
+
+  <!-- The seed. -->
+  <circle cx="256" cy="142" r="86" fill="url(#seedGlow)"/>
+  <circle cx="256" cy="142" r="44" fill="#3ce392"/>
+  <circle cx="256" cy="142" r="44" fill="none" stroke="#eef6fa" stroke-width="3" opacity="0.28"/>
+</svg>
